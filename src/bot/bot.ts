@@ -94,10 +94,8 @@ export class TelegramBot {
       return ctx.reply(
         'Добро пожаловать! Выберите действие:',
         Markup.inlineKeyboard([
-          [Markup.button.callback('Ближайшие встречи', 'new_events')],
-          [Markup.button.callback('Мои встречи', 'my_events')],
-          [Markup.button.callback('Отзывы', 'reviews')],
-          [Markup.button.callback('О клубе', 'info')],
+          [Markup.button.callback('Ближайшие встречи', 'new_events'), Markup.button.callback('Мои встречи', 'my_events')],
+          [Markup.button.callback('Отзывы', 'reviews'), Markup.button.callback('О клубе', 'info')],
           [Markup.button.callback('Помощь', 'help')]
         ])
       );
