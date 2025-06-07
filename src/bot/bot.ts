@@ -3,8 +3,9 @@ import { Command } from '../commands/command.interface';
 import { MessageSubscriber } from './subscribers/message.subscriber';
 import { AppDataSource } from '../data-source';
 import { Event } from '../entities/Event';
+import { ADMINS } from '../config';
 
-const ADMINS = (process.env.ADMINS || '').split(',').map(id => id.trim());
+
 function isAdmin(userId: number | string | undefined): boolean {
   if (!userId) return false;
   return ADMINS.includes(String(userId));
@@ -104,9 +105,9 @@ export class TelegramBot {
         [Markup.button.callback('Отзывы', 'reviews'), Markup.button.callback('О клубе', 'info')],
         [Markup.button.callback('Помощь', 'help')]
       ];
-      // if (isAdmin(ctx.from?.id)) {
+      if (isAdmin(ctx.from?.id)) {
         buttons.push([Markup.button.callback('Админка', 'admin')]);
-      // }
+      }
       return ctx.reply(
         'Добро пожаловать! Выберите действие:' +
         '\nтвой ID: ' + ctx.from?.id +

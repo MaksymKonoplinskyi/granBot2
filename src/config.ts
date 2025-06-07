@@ -1,0 +1,1 @@
+export const ADMINS = ['397062368']

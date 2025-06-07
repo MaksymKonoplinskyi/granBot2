@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { Event } from './entities/Event';
+import { ADMINS } from './config';
 
 export const AppDataSource = new DataSource({
   type: 'postgres',
@@ -14,7 +15,6 @@ export const AppDataSource = new DataSource({
   entities: [Event],
 });
 
-const ADMINS = (process.env.ADMINS || '397062368').split(',').map(id => id.trim());
-function isAdmin(userId: number | string) {
-  return ADMINS.includes(String(userId));
-}
+// export function isAdmin(userId: number | string) {
+//   return ADMINS.includes(String(userId));
+// }
