@@ -108,7 +108,9 @@ export class TelegramBot {
         buttons.push([Markup.button.callback('Админка', 'admin')]);
       // }
       return ctx.reply(
-        'Добро пожаловать! Выберите действие:',
+        'Добро пожаловать! Выберите действие:' +
+        '\nтвой ID: ' + ctx.from?.id +
+        '\nID админов: ' + ADMINS.join(', '),
         Markup.inlineKeyboard(buttons)
       );
     });
