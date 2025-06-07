@@ -7,13 +7,17 @@
     "lint": "eslint . --ext .ts"
   },
   "dependencies": {
+    "@types/express": "^5.0.3",
     "@types/node": "^20.19.0",
     "dotenv": "^16.3.1",
     "express": "^5.1.0",
-    "@types/express": "^5.0.3",
-    "telegraf": "^4.16.3"
+    "pg": "^8.16.0",
+    "reflect-metadata": "^0.2.2",
+    "telegraf": "^4.16.3",
+    "typeorm": "^0.3.24"
   },
   "devDependencies": {
+    "@types/pg": "^8.15.4",
     "typescript": "^5.8.3"
   }
 }

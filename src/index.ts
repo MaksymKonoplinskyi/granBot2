@@ -14,6 +14,7 @@ for (const envVar of requiredEnvVars) {
   try {
     const bot = new TelegramBot(process.env.BOT_TOKEN!);
     bot.init([]);
+    bot.addAdminFeatures()
     bot.addStartMenu();
 
     if (process.env.NODE_ENV === 'production') {
