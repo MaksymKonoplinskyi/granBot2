@@ -23,11 +23,9 @@ for (const envVar of requiredEnvVars) {
       const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/bot`;
       const port = Number(process.env.PORT || 3000);
 
-      // Создаём express-приложение
       const app = express();
-      app.use(bot.getWebhookCallback('/bot')); // реализуйте этот метод в TelegramBot
+      app.use(bot.getWebhookCallback('/bot'));
 
-      // Устанавливаем webhook
       await bot.setWebhook(webhookUrl);
 
       app.listen(port, () => {
