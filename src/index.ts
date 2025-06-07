@@ -20,7 +20,7 @@ try {
     }
     const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/bot`;
     console.log(`Starting webhook at ${webhookUrl}`);
-    bot.launchWebhook(webhookUrl);
+    bot.launchWebhook(process.env.RENDER_EXTERNAL_URL + '/bot', Number(process.env.PORT || 3000));
   } else {
     console.log('Starting in polling mode');
     bot.launchPolling();
