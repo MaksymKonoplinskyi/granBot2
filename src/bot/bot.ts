@@ -2,7 +2,6 @@ import { Telegraf, Context } from 'telegraf';
 import { Command } from '../commands/command.interface';
 import { MessageSubscriber } from './subscribers/message.subscriber';
 
-
 export class TelegramBot {
   private readonly bot: Telegraf<Context>;
   private isInitialized = false;
@@ -10,6 +9,14 @@ export class TelegramBot {
   constructor(private readonly token: string) {
     this.bot = new Telegraf(this.token);
     this.setupErrorHandling();
+  }
+
+  public getWebhookCallback(path: string) {
+    return this.bot.webhookCallback(path);
+  }
+  
+  public async setWebhook(url: string) {
+    await this.bot.telegram.setWebhook(url);
   }
 
   public async launchWebhook(webhookUrl: string, port: number = 3000): Promise<void> {
