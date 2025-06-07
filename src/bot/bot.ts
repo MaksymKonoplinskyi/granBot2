@@ -104,9 +104,9 @@ export class TelegramBot {
         [Markup.button.callback('Отзывы', 'reviews'), Markup.button.callback('О клубе', 'info')],
         [Markup.button.callback('Помощь', 'help')]
       ];
-      if (isAdmin(ctx.from?.id)) {
+      // if (isAdmin(ctx.from?.id)) {
         buttons.push([Markup.button.callback('Админка', 'admin')]);
-      }
+      // }
       return ctx.reply(
         'Добро пожаловать! Выберите действие:',
         Markup.inlineKeyboard(buttons)
