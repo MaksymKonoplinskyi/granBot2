@@ -1,6 +1,5 @@
 import { TelegramBot } from './bot/bot';
 import dotenv from 'dotenv';
-import { Telegraf } from 'telegraf';
 import express from 'express';
 dotenv.config();
 
@@ -15,6 +14,7 @@ for (const envVar of requiredEnvVars) {
   try {
     const bot = new TelegramBot(process.env.BOT_TOKEN!);
     bot.init([]);
+    bot.addStartMenu();
 
     if (process.env.NODE_ENV === 'production') {
       if (!process.env.RENDER_EXTERNAL_URL) {

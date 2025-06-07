@@ -1,4 +1,4 @@
-import { Telegraf, Context } from 'telegraf';
+import { Telegraf, Context, Markup } from 'telegraf';
 import { Command } from '../commands/command.interface';
 import { MessageSubscriber } from './subscribers/message.subscriber';
 
@@ -86,6 +86,18 @@ export class TelegramBot {
     this.bot.catch((err: any, ctx: Context) => {
       console.error(`Error for ${ctx.updateType}:`, err);
       ctx.reply('Произошла ошибка при обработке запроса').catch(console.error);
+    });
+  }
+
+  public addStartMenu() {
+    this.bot.start((ctx) => {
+      return ctx.reply(
+        'Добро пожаловать! Выберите действие:',
+        Markup.inlineKeyboard([
+          [Markup.button.callback('Основные функции', 'main_functions')],
+          [Markup.button.callback('Помощь', 'help')]
+        ])
+      );
     });
   }
 }
