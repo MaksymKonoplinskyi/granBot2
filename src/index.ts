@@ -13,7 +13,7 @@ for (const envVar of requiredEnvVars) {
 
 try {
   const bot = new TelegramBot(process.env.BOT_TOKEN!);
-  
+  bot.init([]);
   if (process.env.NODE_ENV === 'production') {
     if (!process.env.RENDER_EXTERNAL_URL) {
       throw new Error('RENDER_EXTERNAL_URL is required in production');
