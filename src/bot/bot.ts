@@ -1,5 +1,5 @@
 import { Telegraf, Context } from 'telegraf';
-import { Command } from './commands/command.interface';
+import { Command } from '../commands/command.interface';
 import { MessageSubscriber } from './subscribers/message.subscriber';
 
 
