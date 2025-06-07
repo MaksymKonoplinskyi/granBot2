@@ -8,10 +8,10 @@
   },
   "dependencies": {
     "dotenv": "^16.3.1",
-    "telegraf": "^4.16.3"
+    "telegraf": "^4.16.3",
+    "@types/node": "^20.19.0"
   },
   "devDependencies": {
-    "@types/node": "^20.19.0",
     "typescript": "^5.8.3"
   }
 }
