@@ -100,5 +100,10 @@ export class TelegramBot {
         ])
       );
     });
+
+    this.bot.action('info', async (ctx) => {
+      await ctx.answerCbQuery();
+      await ctx.reply('Это отличный клуб');
+    });
   }
 }
