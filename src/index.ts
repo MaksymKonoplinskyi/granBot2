@@ -1,14 +1,13 @@
-const { Telegraf } = require('telegraf');
-import { Context } from 'telegraf';
+import { TelegramBot } from './bot/bot';
+import dotenv from 'dotenv';
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
+dotenv.config();
 
-bot.start((ctx: Context) => ctx.reply('Добро пожаловать!'));
-bot.help((ctx: Context) => ctx.reply('Отправь мне любое сообщение'));
-bot.on('text', (ctx: Context) => {
-  if (ctx.message && 'text' in ctx.message) {
-    ctx.reply('Вы написали: ' + (ctx.message as { text: string }).text);
-  }
-});
+const bot = new TelegramBot(process.env.BOT_TOKEN!);
 
-bot.launch();
+if (process.env.NODE_ENV === 'production') {
+  const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/bot`;
+  bot.launchWebhook(webhookUrl);
+} else {
+  bot.launchPolling();
+}

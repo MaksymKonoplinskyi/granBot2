@@ -8,6 +8,14 @@ export class TelegramBot {
     this.bot = new Telegraf(token);
   }
 
+  public launchWebhook(webhookUrl: string) {
+    this.bot.launch({ webhook: { domain: webhookUrl } });
+  }
+
+  public launchPolling() {
+    this.bot.launch();
+  }
+
   public init(commands: Command[]): void {
     this.registerCommands(commands);
     this.bot.launch();
