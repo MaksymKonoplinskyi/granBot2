@@ -120,6 +120,17 @@ export class TelegramBot {
       await ctx.answerCbQuery();
       await ctx.reply('Это отличный клуб');
     });
+
+    this.bot.action('admin', async (ctx) => {
+      await ctx.answerCbQuery();
+      await ctx.editMessageText(
+        'Админ-меню:',
+        Markup.inlineKeyboard([
+          [Markup.button.callback('Создать встречу', 'admin_create_event'), Markup.button.callback('Редактировать встречу', 'admin_edit_event')],
+          [Markup.button.callback('Главное меню', 'main_menu'), Markup.button.callback('Назад', 'admin_back')]
+        ])
+      );
+    });
   }
 
   public addAdminFeatures() {
