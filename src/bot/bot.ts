@@ -109,7 +109,7 @@ export class TelegramBot {
         buttons.push([Markup.button.callback('Админка', 'admin')]);
       }
       return ctx.reply(
-        'Добро пожаловать! Выберите действие:' +
+        'Главное меню:' +
         '\nтвой ID: ' + ctx.from?.id +
         '\nID админов: ' + ADMINS.join(', '),
         Markup.inlineKeyboard(buttons)
@@ -126,8 +126,8 @@ export class TelegramBot {
       await ctx.editMessageText(
         'Админ-меню:',
         Markup.inlineKeyboard([
-          [Markup.button.callback('Создать встречу', 'admin_create_event'), Markup.button.callback('Редактировать встречу', 'admin_edit_event')],
-          [Markup.button.callback('Главное меню', 'main_menu'), Markup.button.callback('Назад', 'admin_back')]
+          [Markup.button.callback('Создать встречу', 'create_event'), Markup.button.callback('Редактировать встречу', 'admin_edit_event')],
+          [Markup.button.callback('Главное меню', 'main_menu'), Markup.button.callback('Назад', 'main_menu')]
         ])
       );
     });
