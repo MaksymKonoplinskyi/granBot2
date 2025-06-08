@@ -12,9 +12,5 @@ export const AppDataSource = new DataSource({
   database: process.env.DB_NAME,
   synchronize: true, // В проде лучше false!
   logging: false,
-  entities: [Event],
+  entities: [Event, __dirname + '/entities/*.js'],
 });
-
-// export function isAdmin(userId: number | string) {
-//   return ADMINS.includes(String(userId));
-// }
