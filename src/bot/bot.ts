@@ -34,26 +34,41 @@ export class TelegramBot {
         return ctx.wizard.next();
       },
       async (ctx: any) => {
-        ctx.scene.session.event.title = ctx.message.text;
-        // Сохраняем черновик в базу
-        const event = new Event();
-        event.title = ctx.scene.session.event.title;
-        await AppDataSource.manager.save(event);
-        ctx.scene.session.event.id = event.id;
-        await ctx.reply(`Название: ${event.title}\n\nЭтап 2/4: Введите дату начала (YYYY-MM-DD HH:mm):`);
-        return ctx.wizard.next();
-      },
-      async (ctx: any) => {
-        const event = await AppDataSource.manager.findOneBy(Event, { id: ctx.scene.session.event.id });
-        if (!event) {
-          await ctx.reply('Ошибка: встреча не найдена.');
+        try {
+          ctx.scene.session.event.title = ctx.message.text;
+          // Сохраняем черновик в базу
+          const event = new Event();
+          event.title = ctx.scene.session.event.title;
+          console.log('Создаём новую встречу:', event);
+          await AppDataSource.manager.save(event);
+          console.log('Встреча сохранена, id:', event.id);
+          ctx.scene.session.event.id = event.id;
+          await ctx.reply(`Название: ${event.title}\n\nЭтап 2/4: Введите дату начала (YYYY-MM-DD HH:mm):`);
+          return ctx.wizard.next();
+        } catch (error) {
+          console.error('Ошибка при создании встречи:', error);
+          await ctx.reply('Произошла ошибка при создании встречи. Попробуйте позже.');
           return ctx.scene.leave();
         }
-        event.startDate = new Date(ctx.message.text);
-        await AppDataSource.manager.save(event);
-        ctx.scene.session.event.startDate = event.startDate;
-        await ctx.reply(`Название: ${event.title}\nДата начала: ${event.startDate.toLocaleString()}\n\nЭтап 3/4: Введите дату окончания (YYYY-MM-DD HH:mm):`);
-        return ctx.wizard.next();
+      },
+      async (ctx: any) => {
+        try {
+          const event = await AppDataSource.manager.findOneBy(Event, { id: ctx.scene.session.event.id });
+          if (!event) {
+            console.error('Встреча не найдена, id:', ctx.scene.session.event.id);
+            await ctx.reply('Ошибка: встреча не найдена.');
+            return ctx.scene.leave();
+          }
+          event.startDate = new Date(ctx.message.text);
+          await AppDataSource.manager.save(event);
+          ctx.scene.session.event.startDate = event.startDate;
+          await ctx.reply(`Название: ${event.title}\nДата начала: ${event.startDate.toLocaleString()}\n\nЭтап 3/4: Введите дату окончания (YYYY-MM-DD HH:mm):`);
+          return ctx.wizard.next();
+        } catch (error) {
+          console.error('Ошибка при сохранении даты начала:', error);
+          await ctx.reply('Произошла ошибка при сохранении даты. Попробуйте позже.');
+          return ctx.scene.leave();
+        }
       },
       async (ctx: any) => {
         const event = await AppDataSource.manager.findOneBy(Event, { id: ctx.scene.session.event.id });
