@@ -1,9 +1,10 @@
-import { Telegraf, Context, Markup } from 'telegraf';
+import { Telegraf, Context, Markup, Scenes, session } from 'telegraf';
 import { Command } from '../commands/command.interface';
 import { MessageSubscriber } from './subscribers/message.subscriber';
 import { AppDataSource } from '../data-source';
 import { Event } from '../entities/Event';
 import { ADMINS } from '../config';
+import { WizardContext } from 'telegraf/typings/scenes';
 
 
 function isAdmin(userId: number | string | undefined): boolean {
@@ -12,12 +13,75 @@ function isAdmin(userId: number | string | undefined): boolean {
 }
 
 export class TelegramBot {
-  private readonly bot: Telegraf<Context>;
+  private readonly bot: Telegraf<Scenes.WizardContext>;
   private isInitialized = false;
+  private stage: Scenes.Stage<Scenes.WizardContext>;
 
   constructor(private readonly token: string) {
-    this.bot = new Telegraf(this.token);
+    this.bot = new Telegraf<Scenes.WizardContext>(this.token);
     this.setupErrorHandling();
+
+    // --- WizardScene для создания встречи ---
+    const createEventWizard = new Scenes.WizardScene(
+      'create-event-wizard',
+      async (ctx: any) => {
+        if (!isAdmin(ctx.from?.id)) {
+          await ctx.reply('У вас нет прав администратора.');
+          return ctx.scene.leave();
+        }
+        ctx.scene.session.event = {};
+        await ctx.reply('Этап 1/4: Введите название встречи:');
+        return ctx.wizard.next();
+      },
+      async (ctx: any) => {
+        ctx.scene.session.event.title = ctx.message.text;
+        // Сохраняем черновик в базу
+        const event = new Event();
+        event.title = ctx.scene.session.event.title;
+        await AppDataSource.manager.save(event);
+        ctx.scene.session.event.id = event.id;
+        await ctx.reply(`Название: ${event.title}\n\nЭтап 2/4: Введите дату начала (YYYY-MM-DD HH:mm):`);
+        return ctx.wizard.next();
+      },
+      async (ctx: any) => {
+        const event = await AppDataSource.manager.findOneBy(Event, { id: ctx.scene.session.event.id });
+        if (!event) {
+          await ctx.reply('Ошибка: встреча не найдена.');
+          return ctx.scene.leave();
+        }
+        event.startDate = new Date(ctx.message.text);
+        await AppDataSource.manager.save(event);
+        ctx.scene.session.event.startDate = event.startDate;
+        await ctx.reply(`Название: ${event.title}\nДата начала: ${event.startDate.toLocaleString()}\n\nЭтап 3/4: Введите дату окончания (YYYY-MM-DD HH:mm):`);
+        return ctx.wizard.next();
+      },
+      async (ctx: any) => {
+        const event = await AppDataSource.manager.findOneBy(Event, { id: ctx.scene.session.event.id });
+        if (!event) {
+          await ctx.reply('Ошибка: встреча не найдена.');
+          return ctx.scene.leave();
+        }
+        event.endDate = new Date(ctx.message.text);
+        await AppDataSource.manager.save(event);
+        ctx.scene.session.event.endDate = event.endDate;
+        await ctx.reply(`Название: ${event.title}\nДата начала: ${event.startDate.toLocaleString()}\nДата окончания: ${event.endDate.toLocaleString()}\n\nЭтап 4/4: Введите описание встречи:`);
+        return ctx.wizard.next();
+      },
+      async (ctx: any) => {
+        const event = await AppDataSource.manager.findOneBy(Event, { id: ctx.scene.session.event.id });
+        if (!event) {
+          await ctx.reply('Ошибка: встреча не найдена.');
+          return ctx.scene.leave();
+        }
+        event.description = ctx.message.text;
+        await AppDataSource.manager.save(event);
+        await ctx.reply(`Встреча создана!\n\nНазвание: ${event.title}\nДата начала: ${event.startDate.toLocaleString()}\nДата окончания: ${event.endDate.toLocaleString()}\nОписание: ${event.description}`);
+        return ctx.scene.leave();
+      }
+    );
+    this.stage = new Scenes.Stage<Scenes.WizardContext>([createEventWizard]);
+    this.bot.use(session());
+    this.bot.use(this.stage.middleware());
   }
 
   public getWebhookCallback(path: string) {
@@ -134,21 +198,15 @@ export class TelegramBot {
   }
 
   public addAdminFeatures() {
-    this.bot.command('create_event', async (ctx) => {
+
+    this.bot.action('create_event', async (ctx) => {
+      await ctx.answerCbQuery();
       if (!isAdmin(ctx.from?.id)) {
         return ctx.reply('У вас нет прав администратора.');
       }
-      // Пример: /create_event Название | Описание | 2024-07-01 18:00
-      const [title, description, dateStr] = ctx.message.text.replace('/create_event', '').split('|').map(s => s.trim());
-      if (!title || !description || !dateStr) {
-        return ctx.reply('Формат: /create_event Название | Описание | Дата (YYYY-MM-DD HH:mm)');
-      }
-      const event = new Event();
-      event.title = title;
-      event.description = description;
-      event.date = new Date(dateStr);
-      await AppDataSource.manager.save(event);
-      ctx.reply('Встреча создана!');
+      // Запускаем сцену создания встречи
+      // @ts-ignore
+      ctx.scene.enter('create-event-wizard');
     });
 
     // Аналогично реализуйте команды для редактирования/удаления

@@ -12,5 +12,18 @@ export class Event {
   description!: string;
 
   @Column()
-  date!: Date;
+  startDate!: Date;
+  
+  @Column()
+  endDate!: Date;
+
+  @Column()
+  location!: string;
+
+  @Column()
+  participants!: string[];
+  
+  @Column()
+  isPublished!: boolean;
+  
 }
