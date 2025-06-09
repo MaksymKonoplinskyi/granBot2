@@ -6,6 +6,8 @@ import { Event } from '../entities/Event';
 import { ADMINS } from '../config';
 import { WizardContext } from 'telegraf/typings/scenes';
 import { MoreThan, LessThan } from 'typeorm';
+import { EventParticipant } from '../entities/EventParticipant';
+import { User } from '../entities/User';
 
 // Настройки логирования
 interface LoggingConfig {
@@ -577,6 +579,182 @@ export class TelegramBot {
         'Главное меню:',
         Markup.inlineKeyboard(buttons)
       );
+    });
+
+    this.bot.action('new_events', async (ctx) => {
+      const now = new Date();
+      const events = await this.dataSource.manager.find(Event, {
+        where: {
+          startDate: MoreThan(now),
+          isPublished: true,
+          isCancelled: false
+        },
+        relations: ['participants'],
+        order: {
+          startDate: 'ASC'
+        }
+      });
+
+      if (events.length === 0) {
+        await ctx.reply('На данный момент нет предстоящих встреч.');
+        return;
+      }
+
+      for (const event of events) {
+        const isParticipant = event.participants.some(p => p.user.telegramId === ctx.from?.id);
+        const buttons = [
+          [Markup.button.callback('📋 Подробнее', `event_details_${event.id}`)]
+        ];
+
+        if (isParticipant) {
+          buttons.push([
+            Markup.button.callback('❌ Отменить участие', `leave_event_${event.id}`),
+            Markup.button.callback('💳 Оплатить', `pay_event_${event.id}`)
+          ]);
+        } else {
+          buttons.push([Markup.button.callback('✅ Принять участие', `join_event_${event.id}`)]);
+        }
+
+        await ctx.reply(
+          `📅 ${event.title}\n` +
+          `Дата начала: ${formatDate(event.startDate)}\n` +
+          `Дата окончания: ${formatDate(event.endDate)}\n` +
+          `Участников: ${event.participants.length}`,
+          Markup.inlineKeyboard(buttons)
+        );
+      }
+    });
+
+    // Обработчики для кнопок участия
+    this.bot.action(/^join_event_(\d+)$/, async (ctx) => {
+      const eventId = parseInt(ctx.match[1]);
+      const event = await this.dataSource.manager.findOne(Event, {
+        where: { id: eventId },
+        relations: ['participants']
+      });
+
+      if (!event) {
+        await ctx.answerCbQuery('Встреча не найдена');
+        return;
+      }
+
+      const isParticipant = event.participants.some(p => p.user.telegramId === ctx.from?.id);
+      if (isParticipant) {
+        await ctx.answerCbQuery('Вы уже участвуете в этой встрече');
+        return;
+      }
+
+      const participant = new EventParticipant();
+      let user = await this.dataSource.manager.findOne(User, { where: { telegramId: ctx.from!.id } });
+      if (!user) {
+        user = new User();
+        user.telegramId = ctx.from!.id;
+        user.username = ctx.from?.username || null;
+        user.firstName = ctx.from?.first_name || null;
+        user.lastName = ctx.from?.last_name || null;
+        await this.dataSource.manager.save(user);
+      }
+      participant.user = user;
+      participant.event = event;
+      await this.dataSource.manager.save(participant);
+
+      await ctx.answerCbQuery('Вы успешно присоединились к встрече!');
+      
+      // Обновляем сообщение
+      const buttons = [
+        [Markup.button.callback('📋 Подробнее', `event_details_${event.id}`)],
+        [
+          Markup.button.callback('❌ Отменить участие', `leave_event_${event.id}`),
+          Markup.button.callback('💳 Оплатить', `pay_event_${event.id}`)
+        ]
+      ];
+
+      await ctx.editMessageText(
+        `📅 ${event.title}\n` +
+        `Дата начала: ${formatDate(event.startDate)}\n` +
+        `Дата окончания: ${formatDate(event.endDate)}\n` +
+        `Участников: ${event.participants.length + 1}`,
+        Markup.inlineKeyboard(buttons)
+      );
+    });
+
+    this.bot.action(/^leave_event_(\d+)$/, async (ctx) => {
+      const eventId = parseInt(ctx.match[1]);
+      const participant = await this.dataSource.manager.findOne(EventParticipant, {
+        where: {
+          event: { id: eventId },
+          user: { telegramId: ctx.from?.id }
+        }
+      });
+
+      if (!participant) {
+        await ctx.answerCbQuery('Вы не участвуете в этой встрече');
+        return;
+      }
+
+      await this.dataSource.manager.remove(participant);
+      await ctx.answerCbQuery('Вы отменили участие во встрече');
+
+      // Обновляем сообщение
+      const event = await this.dataSource.manager.findOne(Event, {
+        where: { id: eventId },
+        relations: ['participants']
+      });
+
+      if (event) {
+        const buttons = [
+          [Markup.button.callback('📋 Подробнее', `event_details_${event.id}`)],
+          [Markup.button.callback('✅ Принять участие', `join_event_${event.id}`)]
+        ];
+
+        await ctx.editMessageText(
+          `📅 ${event.title}\n` +
+          `Дата начала: ${formatDate(event.startDate)}\n` +
+          `Дата окончания: ${formatDate(event.endDate)}\n` +
+          `Участников: ${event.participants.length - 1}`,
+          Markup.inlineKeyboard(buttons)
+        );
+      }
+    });
+
+    this.bot.action(/^event_details_(\d+)$/, async (ctx) => {
+      const eventId = parseInt(ctx.match[1]);
+      const event = await this.dataSource.manager.findOne(Event, {
+        where: { id: eventId },
+        relations: ['participants']
+      });
+
+      if (!event) {
+        await ctx.answerCbQuery('Встреча не найдена');
+        return;
+      }
+
+      const isParticipant = event.participants.some(p => p.user.telegramId === ctx.from?.id);
+      const buttons = [
+        [Markup.button.callback('◀️ Назад к списку', 'new_events')]
+      ];
+
+      if (isParticipant) {
+        buttons.push([
+          Markup.button.callback('❌ Отменить участие', `leave_event_${event.id}`),
+          Markup.button.callback('💳 Оплатить', `pay_event_${event.id}`)
+        ]);
+      } else {
+        buttons.push([Markup.button.callback('✅ Принять участие', `join_event_${event.id}`)]);
+      }
+
+      await ctx.reply(
+        `📅 ${event.title}\n\n` +
+        `📝 Описание:\n${event.description}\n\n` +
+        `🕒 Дата начала: ${formatDate(event.startDate)}\n` +
+        `🕕 Дата окончания: ${formatDate(event.endDate)}\n` +
+        `👥 Участников: ${event.participants.length}`,
+        Markup.inlineKeyboard(buttons)
+      );
+    });
+
+    this.bot.action(/^pay_event_(\d+)$/, async (ctx) => {
+      await ctx.answerCbQuery('Функция оплаты будет добавлена позже');
     });
   }
 

@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { Event } from './entities/Event';
+import { EventParticipant } from './entities/EventParticipant';
+import { User } from './entities/User';
 // ADMINS больше не нужен здесь, если он используется только в bot.ts
 
 export function getDataSource(verbose: boolean = false): DataSource {
@@ -13,7 +15,7 @@ export function getDataSource(verbose: boolean = false): DataSource {
     database: process.env.DB_NAME,
     synchronize: true, // В проде лучше false!
     logging: verbose,
-    entities: [Event],
+    entities: [Event, EventParticipant, User],
   });
 }
 

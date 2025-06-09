@@ -1,31 +1,38 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { EventParticipant } from './EventParticipant';
 
 @Entity()
 export class Event {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column()
+  @Column('varchar')
   title!: string;
 
-  @Column({ nullable: true })
-  description!: string;
+  @Column('text', { nullable: true })
+  description!: string | null;
 
-  @Column({ nullable: true })
+  @Column('varchar', { nullable: true })
+  location!: string | null;
+
+  @Column('timestamp')
   startDate!: Date;
-  
-  @Column({ nullable: true })
-  endDate!: Date;
 
-  @Column({ nullable: true })
-  location!: string;
+  @Column('timestamp', { nullable: true })
+  endDate!: Date | null;
 
-  @Column('simple-array', { nullable: true })
-  participants!: string[];
-  
+  @OneToMany(() => EventParticipant, participant => participant.event, { cascade: true })
+  participants!: EventParticipant[];
+
   @Column('boolean', { default: false })
   isPublished!: boolean;
 
-  @Column({ default: false })
+  @Column('boolean', { default: false })
   isCancelled!: boolean;
+
+  @CreateDateColumn()
+  createdAt!: Date;
+
+  @UpdateDateColumn()
+  updatedAt!: Date;
 }
