@@ -177,6 +177,7 @@ export class TelegramBot {
           [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
           [Markup.button.callback('✏️ Описание', 'edit_description')],
           [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
+          [Markup.button.callback(event.isCancelled ? '✅ Восстановить встречу' : '❌ Отменить встречу', 'toggle_cancel')],
           [Markup.button.callback('📋 Встречи', 'admin_events'), 
            Markup.button.callback('🏠 Главное меню', 'main_menu')]
         ];
@@ -187,7 +188,8 @@ export class TelegramBot {
           `Дата начала: ${formatDate(event.startDate)}\n` +
           `Дата окончания: ${formatDate(event.endDate)}\n` +
           `Описание: ${event.description}\n` +
-          `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n\n` +
+          `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+          `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
           `Выберите поле для редактирования:`,
           Markup.inlineKeyboard(buttons)
         );
@@ -252,6 +254,7 @@ export class TelegramBot {
               [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
               [Markup.button.callback('✏️ Описание', 'edit_description')],
               [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
+              [Markup.button.callback(event.isCancelled ? '✅ Восстановить встречу' : '❌ Отменить встречу', 'toggle_cancel')],
               [Markup.button.callback('📋 Встречи', 'admin_events'), 
                Markup.button.callback('🏠 Главное меню', 'main_menu')]
             ];
@@ -262,11 +265,41 @@ export class TelegramBot {
               `Дата начала: ${formatDate(event.startDate)}\n` +
               `Дата окончания: ${formatDate(event.endDate)}\n` +
               `Описание: ${event.description}\n` +
-              `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n\n` +
+              `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+              `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
               `Выберите поле для редактирования:`,
               Markup.inlineKeyboard(buttons)
             );
             return; // Остаемся на текущем шаге
+          case 'toggle_cancel':
+            event.isCancelled = !event.isCancelled;
+            await this.dataSource.manager.save(event);
+            await ctx.answerCbQuery(event.isCancelled ? 'Встреча отменена!' : 'Встреча восстановлена');
+            
+            // Обновляем сообщение с новой информацией
+            const buttons2 = [
+              [Markup.button.callback('✏️ Название', 'edit_title')],
+              [Markup.button.callback('✏️ Дата начала', 'edit_start_date')],
+              [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
+              [Markup.button.callback('✏️ Описание', 'edit_description')],
+              [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
+              [Markup.button.callback(event.isCancelled ? '✅ Восстановить встречу' : '❌ Отменить встречу', 'toggle_cancel')],
+              [Markup.button.callback('📋 Встречи', 'admin_events'), 
+               Markup.button.callback('🏠 Главное меню', 'main_menu')]
+            ];
+
+            await ctx.editMessageText(
+              `Редактирование встречи:\n\n` +
+              `Название: ${event.title}\n` +
+              `Дата начала: ${formatDate(event.startDate)}\n` +
+              `Дата окончания: ${formatDate(event.endDate)}\n` +
+              `Описание: ${event.description}\n` +
+              `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+              `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
+              `Выберите поле для редактирования:`,
+              Markup.inlineKeyboard(buttons2)
+            );
+            return;
           case 'cancel_edit':
             await ctx.reply('Редактирование отменено.');
             return ctx.wizard.back();
@@ -510,6 +543,7 @@ export class TelegramBot {
              `Дата начала: ${formatDate(event.startDate)}\n` +
              `Дата окончания: ${formatDate(event.endDate)}\n` +
              `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+             `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n` +
              `ID: ${event.id}\n`;
     }).join('\n');
 

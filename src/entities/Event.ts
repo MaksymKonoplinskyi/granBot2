@@ -25,4 +25,7 @@ export class Event {
   
   @Column('boolean', { default: false })
   isPublished!: boolean;
+
+  @Column({ default: false })
+  isCancelled!: boolean;
 }
