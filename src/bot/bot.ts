@@ -62,6 +62,14 @@ export class TelegramBot {
     this.bot = new Telegraf<Scenes.WizardContext>(this.token);
     this.setupErrorHandling();
 
+    // Устанавливаем меню команд
+    this.bot.telegram.setMyCommands([
+      { command: 'start', description: '🏠 Главное меню' },
+      { command: 'events', description: '📅 Список встреч' },
+      { command: 'my_events', description: '👥 Мои встречи' },
+      { command: 'help', description: '❓ Помощь' }
+    ]);
+
     // --- WizardScene для создания встречи ---
     const createEventWizard = new Scenes.WizardScene(
       'create-event-wizard',
@@ -713,6 +721,41 @@ export class TelegramBot {
         '\nтвой ID: ' + ctx.from?.id +
         '\nID админов: ' + ADMINS.join(', '),
         Markup.inlineKeyboard(buttons)
+      );
+    });
+
+    this.bot.command('events', async (ctx) => {
+      await ctx.reply(
+        'Выберите тип встреч:',
+        Markup.inlineKeyboard([
+          [Markup.button.callback('Ближайшие', 'admin_upcoming_events')],
+          [Markup.button.callback('Прошедшие', 'admin_past_events')],
+          [Markup.button.callback('Все', 'admin_all_events')]
+        ])
+      );
+    });
+
+    this.bot.command('my_events', async (ctx) => {
+      await ctx.reply(
+        'Мои встречи:',
+        Markup.inlineKeyboard([
+          [Markup.button.callback('Ближайшие', 'my_upcoming_events')],
+          [Markup.button.callback('Прошедшие', 'my_past_events')]
+        ])
+      );
+    });
+
+    this.bot.command('help', async (ctx) => {
+      await ctx.reply(
+        '🤖 Помощь по использованию бота:\n\n' +
+        '/start - открыть главное меню\n' +
+        '/events - просмотр всех встреч\n' +
+        '/my_events - просмотр моих встреч\n' +
+        '/help - показать это сообщение\n\n' +
+        'Для администраторов:\n' +
+        '• Создание новых встреч\n' +
+        '• Редактирование существующих встреч\n' +
+        '• Публикация и отмена встреч'
       );
     });
 
