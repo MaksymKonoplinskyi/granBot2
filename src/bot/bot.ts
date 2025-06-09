@@ -81,20 +81,13 @@ export class TelegramBot {
           return ctx.scene.leave();
         }
         ctx.scene.session.event = {};
-        await ctx.reply('Этап 1/4: Введите название встречи:');
+        await ctx.reply('Этап 1/7: Введите название встречи:');
         return ctx.wizard.next();
       },
       async (ctx: any) => {
         try {
           ctx.scene.session.event.title = ctx.message.text;
-          // Сохраняем черновик в базу
-          const event = new Event();
-          event.title = ctx.scene.session.event.title;
-          console.log('Создаём новую встречу:', event);
-          await this.dataSource.manager.save(event);
-          console.log('Встреча сохранена, id:', event.id);
-          ctx.scene.session.event.id = event.id;
-          await ctx.reply(`Название: ${event.title}\n\nЭтап 2/4: Введите дату начала (ДД.ММ.ГГГГ, ЧЧ:ММ):`);
+          await ctx.reply(`Название: ${ctx.scene.session.event.title}\n\nЭтап 2/7: Введите дату начала (ДД.ММ.ГГГГ, ЧЧ:ММ):`);
           return ctx.wizard.next();
         } catch (error) {
           console.error('Ошибка при создании встречи:', error);
@@ -104,21 +97,13 @@ export class TelegramBot {
       },
       async (ctx: any) => {
         try {
-          const event = await this.dataSource.manager.findOneBy(Event, { id: ctx.scene.session.event.id });
-          if (!event) {
-            console.error('Встреча не найдена, id:', ctx.scene.session.event.id);
-            await ctx.reply('Ошибка: встреча не найдена.');
-            return ctx.scene.leave();
-          }
           const parsedDate = parseDateTime(ctx.message.text);
           if (!parsedDate) {
             await ctx.reply('Неверный формат даты. Пожалуйста, введите в формате ДД.ММ.ГГГГ, ЧЧ:ММ:');
-            return; // Остаемся на этом шаге
+            return;
           }
-          event.startDate = parsedDate;
-          await this.dataSource.manager.save(event);
-          ctx.scene.session.event.startDate = event.startDate;
-          await ctx.reply(`Название: ${event.title}\nДата начала: ${formatDate(event.startDate)}\n\nЭтап 3/4: Введите дату окончания (ДД.ММ.ГГГГ, ЧЧ:ММ):`);
+          ctx.scene.session.event.startDate = parsedDate;
+          await ctx.reply(`Название: ${ctx.scene.session.event.title}\nДата начала: ${formatDate(ctx.scene.session.event.startDate)}\n\nЭтап 3/7: Введите дату окончания (ДД.ММ.ГГГГ, ЧЧ:ММ):`);
           return ctx.wizard.next();
         } catch (error) {
           console.error('Ошибка при сохранении даты начала:', error);
@@ -127,41 +112,179 @@ export class TelegramBot {
         }
       },
       async (ctx: any) => {
-        const event = await this.dataSource.manager.findOneBy(Event, { id: ctx.scene.session.event.id });
-        if (!event) {
-          await ctx.reply('Ошибка: встреча не найдена.');
-          return ctx.scene.leave();
-        }
         const parsedDate = parseDateTime(ctx.message.text);
         if (!parsedDate) {
           await ctx.reply('Неверный формат даты. Пожалуйста, введите в формате ДД.ММ.ГГГГ, ЧЧ:ММ');
-          return; // Остаемся на этом шаге
+          return;
         }
-        event.endDate = parsedDate;
-        await this.dataSource.manager.save(event);
-        ctx.scene.session.event.endDate = event.endDate;
-        await ctx.reply(`Название: ${event.title}\nДата начала: ${formatDate(event.startDate)}\nДата окончания: ${formatDate(event.endDate)}\n\nЭтап 4/4: Введите описание встречи:`);
+        ctx.scene.session.event.endDate = parsedDate;
+        await ctx.reply(`Название: ${ctx.scene.session.event.title}\nДата начала: ${formatDate(ctx.scene.session.event.startDate)}\nДата окончания: ${formatDate(ctx.scene.session.event.endDate)}\n\nЭтап 4/7: Введите описание встречи:`);
         return ctx.wizard.next();
       },
       async (ctx: any) => {
-        const event = await this.dataSource.manager.findOneBy(Event, { id: ctx.scene.session.event.id });
-        if (!event) {
-          await ctx.reply('Ошибка: встреча не найдена.');
+        ctx.scene.session.event.description = ctx.message.text;
+        await ctx.reply(
+          `Название: ${ctx.scene.session.event.title}\n` +
+          `Дата начала: ${formatDate(ctx.scene.session.event.startDate)}\n` +
+          `Дата окончания: ${formatDate(ctx.scene.session.event.endDate)}\n` +
+          `Описание: ${ctx.scene.session.event.description}\n\n` +
+          `Этап 5/7: Настройка оплаты\n` +
+          `Разрешить оплату на месте?`,
+          Markup.inlineKeyboard([
+            [Markup.button.callback('✅ Да', 'payment_onsite_yes'), 
+             Markup.button.callback('❌ Нет', 'payment_onsite_no')]
+          ])
+        );
+        return ctx.wizard.next();
+      },
+      async (ctx: any) => {
+        if (!ctx.callbackQuery) {
+          await ctx.reply('Пожалуйста, используйте кнопки для ответа');
+          return;
+        }
+
+        const allowOnSite = ctx.callbackQuery.data === 'payment_onsite_yes';
+        ctx.scene.session.event.allowOnSitePayment = allowOnSite;
+        await ctx.answerCbQuery();
+        await ctx.editMessageText(
+          `Название: ${ctx.scene.session.event.title}\n` +
+          `Дата начала: ${formatDate(ctx.scene.session.event.startDate)}\n` +
+          `Дата окончания: ${formatDate(ctx.scene.session.event.endDate)}\n` +
+          `Описание: ${ctx.scene.session.event.description}\n` +
+          `Оплата на месте: ${allowOnSite ? '✅ Разрешена' : '❌ Запрещена'}\n\n` +
+          `Этап 6/8: Введите сумму полной оплаты (только число, без валюты):`
+        );
+        return ctx.wizard.next();
+      },
+      async (ctx: any) => {
+        const fullPaymentAmount = parseFloat(ctx.message.text);
+        if (isNaN(fullPaymentAmount) || fullPaymentAmount < 0) {
+          await ctx.reply('Пожалуйста, введите корректную сумму (положительное число):');
+          return;
+        }
+        ctx.scene.session.event.fullPaymentAmount = fullPaymentAmount;
+        await ctx.reply(
+          `Название: ${ctx.scene.session.event.title}\n` +
+          `Дата начала: ${formatDate(ctx.scene.session.event.startDate)}\n` +
+          `Дата окончания: ${formatDate(ctx.scene.session.event.endDate)}\n` +
+          `Описание: ${ctx.scene.session.event.description}\n` +
+          `Оплата при встрече: ${ctx.scene.session.event.allowOnSitePayment ? '✅ Разрешена' : '❌ Запрещена'}\n` +
+          `Оплата при встрече: ${ctx.scene.session.event.fullPaymentAmount} грн.\n\n` +
+          `Этап 7/8: Введите цену участия при оплате заранее (только число, без валюты, или 0 если оплата заранее не возможна):`
+        );
+        return ctx.wizard.next();
+      },
+      async (ctx: any) => {
+        try {
+          const advancePaymentAmount = parseFloat(ctx.message.text);
+          if (isNaN(advancePaymentAmount) || advancePaymentAmount < 0) {
+            await ctx.reply('Пожалуйста, введите корректную сумму (положительное число):');
+            return;
+          }
+          
+          // Если сумма 0, устанавливаем null
+          ctx.scene.session.event.advancePaymentAmount = advancePaymentAmount === 0 ? null : advancePaymentAmount;
+          
+          if (advancePaymentAmount > 0) {
+            await ctx.reply(
+              `Название: ${ctx.scene.session.event.title}\n` +
+              `Дата начала: ${formatDate(ctx.scene.session.event.startDate)}\n` +
+              `Дата окончания: ${formatDate(ctx.scene.session.event.endDate)}\n` +
+              `Описание: ${ctx.scene.session.event.description}\n` +
+              `Оплата на месте: ${ctx.scene.session.event.allowOnSitePayment ? '✅ Разрешена' : '❌ Запрещена'}\n` +
+              `Стоимость при оплате при встрече: ${ctx.scene.session.event.fullPaymentAmount} грн.\n` +
+              `Стоимость при оплате заранее: ${ctx.scene.session.event.advancePaymentAmount} грн.\n\n` +
+              `Этап 8/8: Введите дату и время крайнего срока оплаты заранее (ДД.ММ.ГГГГ, ЧЧ:ММ):`,
+              Markup.inlineKeyboard([
+                [Markup.button.callback('⏰ За сутки до начала встречи', 'set_deadline_day_before')]
+              ])
+            );
+            return ctx.wizard.next();
+          } else {
+            ctx.scene.session.event.advancePaymentDeadline = null;
+            // Создаем встречу только после заполнения всех полей
+            const event = new Event();
+            Object.assign(event, ctx.scene.session.event);
+            await this.dataSource.manager.save(event);
+            
+            const buttons = [
+              [Markup.button.callback('Опубликовать', `publish_event_${event.id}`), 
+               Markup.button.callback('Редактировать', `edit_event_${event.id}`)]
+            ];
+            
+            await ctx.reply(
+              `Встреча создана!\n\n` +
+              `Название: ${event.title}\n` +
+              `Дата начала: ${formatDate(event.startDate)}\n` +
+              `Дата окончания: ${formatDate(event.endDate)}\n` +
+              `Описание: ${event.description}\n` +
+              `Оплата на месте: ${event.allowOnSitePayment ? '✅ Разрешена' : '❌ Запрещена'}\n` +
+              `Стоимость и варианты оплаты:\n` +
+              `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+              `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+              `\nСтатус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}`,
+              Markup.inlineKeyboard(buttons)
+            );
+            return ctx.scene.leave();
+          }
+        } catch (error) {
+          console.error('Ошибка при сохранении встречи:', error);
+          await ctx.reply('Произошла ошибка при сохранении встречи. Попробуйте позже.');
           return ctx.scene.leave();
         }
-        event.description = ctx.message.text;
-        await this.dataSource.manager.save(event);
-        
-        const buttons = [
-          [Markup.button.callback('Опубликовать', `publish_event_${event.id}`), 
-           Markup.button.callback('Редактировать', `edit_event_${event.id}`)]
-        ];
-        
-        await ctx.reply(
-          `Встреча создана!\n\nНазвание: ${event.title}\nДата начала: ${formatDate(event.startDate)}\nДата окончания: ${formatDate(event.endDate)}\nОписание: ${event.description}\n\nСтатус: ${event.isPublished ? 'Опубликована' : 'Черновик'}`,
-          Markup.inlineKeyboard(buttons)
-        );
-        return ctx.scene.leave();
+      },
+      async (ctx: any) => {
+        try {
+          let deadline: Date | null = null;
+
+          if (ctx.callbackQuery && ctx.callbackQuery.data === 'set_deadline_day_before') {
+            // Устанавливаем дедлайн за сутки до начала встречи
+            deadline = new Date(ctx.scene.session.event.startDate);
+            deadline.setDate(deadline.getDate() - 1);
+            await ctx.answerCbQuery();
+          } else {
+            // Парсим введенную дату
+            deadline = parseDateTime(ctx.message.text);
+            if (!deadline) {
+              await ctx.reply('Неверный формат даты. Пожалуйста, введите в формате ДД.ММ.ГГГГ, ЧЧ:ММ:');
+              return;
+            }
+          }
+
+          ctx.scene.session.event.advancePaymentDeadline = deadline;
+
+          // Создаем встречу только после заполнения всех полей
+          const event = new Event();
+          Object.assign(event, ctx.scene.session.event);
+          await this.dataSource.manager.save(event);
+          
+          const buttons = [
+            [Markup.button.callback('Опубликовать', `publish_event_${event.id}`), 
+             Markup.button.callback('Редактировать', `edit_event_${event.id}`)]
+          ];
+          
+          await ctx.reply(
+            `Встреча создана!\n\n` +
+            `Название: ${event.title}\n` +
+            `Дата начала: ${formatDate(event.startDate)}\n` +
+            `Дата окончания: ${formatDate(event.endDate)}\n` +
+            `Описание: ${event.description}\n` +
+            `Оплата при встрече: ${event.allowOnSitePayment ? '✅ Разрешена' : '❌ Запрещена'}\n` +
+            `Оплата при встрече: ${event.fullPaymentAmount} грн.\n` +
+            `Стоимость при оплате заранее: ${event.advancePaymentAmount} грн.\n` +
+            `Крайний срок оплати заранее: ${formatDate(event.advancePaymentDeadline)}\n` +
+            `Стоимость и варианты оплаты:\n` +
+            `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+            `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+            `\nСтатус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}`,
+            Markup.inlineKeyboard(buttons)
+          );
+          return ctx.scene.leave();
+        } catch (error) {
+          console.error('Ошибка при сохранении встречи:', error);
+          await ctx.reply('Произошла ошибка при сохранении встречи. Попробуйте позже.');
+          return ctx.scene.leave();
+        }
       }
     );
 
@@ -181,11 +304,15 @@ export class TelegramBot {
           return ctx.scene.leave();
         }
 
-        const buttons = [
+        const getButtons = (event: Event) => [
           [Markup.button.callback('✏️ Название', 'edit_title')],
           [Markup.button.callback('✏️ Дата начала', 'edit_start_date')],
           [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
           [Markup.button.callback('✏️ Описание', 'edit_description')],
+          [Markup.button.callback(`✏️ Возможно оплатить при встрече: ${event.allowOnSitePayment ? '✅ Да' : '❌ Нет'}`, 'edit_onsite_payment')],
+          [Markup.button.callback('✏️ Стоимость при встрече', 'edit_full_payment')],
+          [Markup.button.callback('✏️ Стоимость при оплате заранее', 'edit_advance_payment')],
+          [Markup.button.callback('✏️ Срок оплаты заранее', 'edit_advance_deadline')],
           [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
           [Markup.button.callback(event.isCancelled ? '✅ Восстановить встречу' : '❌ Отменить встречу', 'toggle_cancel')],
           [Markup.button.callback('🗑 Удалить встречу', 'delete_event')],
@@ -199,10 +326,13 @@ export class TelegramBot {
           `Дата начала: ${formatDate(event.startDate)}\n` +
           `Дата окончания: ${formatDate(event.endDate)}\n` +
           `Описание: ${event.description}\n` +
-          `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+          `Стоимость и варианты оплаты:\n` +
+          `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+          `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+          `\nСтатус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
           `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
           `Выберите поле для редактирования:`,
-          Markup.inlineKeyboard(buttons)
+          Markup.inlineKeyboard(getButtons(event))
         );
         return ctx.wizard.next();
       },
@@ -211,7 +341,6 @@ export class TelegramBot {
           return;
         }
 
-        const action = ctx.callbackQuery.data;
         const eventId = ctx.scene.state.eventId;
         const event = await this.dataSource.manager.findOneBy(Event, { id: eventId });
 
@@ -219,6 +348,24 @@ export class TelegramBot {
           await ctx.reply('Встреча не найдена.');
           return ctx.scene.leave();
         }
+
+        const getButtons = (event: Event) => [
+          [Markup.button.callback('✏️ Название', 'edit_title')],
+          [Markup.button.callback('✏️ Дата начала', 'edit_start_date')],
+          [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
+          [Markup.button.callback('✏️ Описание', 'edit_description')],
+          [Markup.button.callback(`✏️ Возможно оплатить при встрече: ${event.allowOnSitePayment ? '✅ Да' : '❌ Нет'}`, 'edit_onsite_payment')],
+          [Markup.button.callback('✏️ Стоимость при встрече', 'edit_full_payment')],
+          [Markup.button.callback('✏️ Стоимость при оплате заранее', 'edit_advance_payment')],
+          [Markup.button.callback('✏️ Срок оплаты заранее', 'edit_advance_deadline')],
+          [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
+          [Markup.button.callback(event.isCancelled ? '✅ Восстановить встречу' : '❌ Отменить встречу', 'toggle_cancel')],
+          [Markup.button.callback('🗑 Удалить встречу', 'delete_event')],
+          [Markup.button.callback('📋 Встречи', 'admin_events'), 
+           Markup.button.callback('🏠 Главное меню', 'main_menu')]
+        ];
+
+        const action = ctx.callbackQuery.data;
 
         switch (action) {
           case 'edit_title':
@@ -249,6 +396,60 @@ export class TelegramBot {
               Markup.inlineKeyboard([[Markup.button.callback('❌ Отменить редактирование', 'cancel_edit')]])
             );
             break;
+          case 'edit_onsite_payment':
+            if (!ctx.callbackQuery) {
+              return;
+            }
+            event.allowOnSitePayment = !event.allowOnSitePayment;
+            await this.dataSource.manager.save(event);
+            await ctx.answerCbQuery(event.allowOnSitePayment ? '✅ Оплата при встрече разрешена' : '❌ Оплата при встрече запрещена');
+            
+            await ctx.editMessageText(
+              `Редактирование встречи:\n\n` +
+              `Название: ${event.title}\n` +
+              `Дата начала: ${formatDate(event.startDate)}\n` +
+              `Дата окончания: ${formatDate(event.endDate)}\n` +
+              `Описание: ${event.description}\n` +
+              `Стоимость и варианты оплаты:\n` +
+              `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+              `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+              `\nСтатус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+              `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
+              `Выберите поле для редактирования:`,
+              Markup.inlineKeyboard(getButtons(event))
+            );
+            return;
+          case 'edit_full_payment':
+            ctx.scene.state.editingField = 'fullPaymentAmount';
+            await ctx.reply(
+              `Текущая стоимость при оплате при встрече: ${event.fullPaymentAmount} грн.\n` +
+              `Введите новую стоимость (только число, без валюты):`,
+              Markup.inlineKeyboard([[Markup.button.callback('❌ Отменить редактирование', 'cancel_edit')]])
+            );
+            break;
+          case 'edit_advance_payment':
+            ctx.scene.state.editingField = 'advancePaymentAmount';
+            await ctx.reply(
+              `Текущая стоимость при оплате заранее: ${event.advancePaymentAmount ? `${event.advancePaymentAmount} грн.` : 'Не установлена'}\n` +
+              `Введите новую стоимость (только число, без валюты, или 0 чтобы отключить):`,
+              Markup.inlineKeyboard([[Markup.button.callback('❌ Отменить редактирование', 'cancel_edit')]])
+            );
+            break;
+          case 'edit_advance_deadline':
+            if (!event.advancePaymentAmount) {
+              await ctx.answerCbQuery('Сначала установите стоимость при оплате заранее');
+              return;
+            }
+            ctx.scene.state.editingField = 'advancePaymentDeadline';
+            await ctx.reply(
+              `Текущий срок оплаты заранее: ${event.advancePaymentDeadline ? formatDate(event.advancePaymentDeadline) : 'Не установлен'}\n` +
+              `Введите новую дату и время (ДД.ММ.ГГГГ, ЧЧ:ММ):`,
+              Markup.inlineKeyboard([
+                [Markup.button.callback('⏰ За сутки до начала встречи', 'set_deadline_day_before')],
+                [Markup.button.callback('❌ Отменить редактирование', 'cancel_edit')]
+              ])
+            );
+            break;
           case 'toggle_publish':
             if (!isEventComplete(event)) {
               await ctx.answerCbQuery('Не все поля заполнены. Заполните все обязательные поля перед публикацией.');
@@ -258,29 +459,19 @@ export class TelegramBot {
             await this.dataSource.manager.save(event);
             await ctx.answerCbQuery(event.isPublished ? 'Встреча опубликована!' : 'Встреча сделана черновиком');
             
-            // Обновляем сообщение с новой информацией
-            const buttons = [
-              [Markup.button.callback('✏️ Название', 'edit_title')],
-              [Markup.button.callback('✏️ Дата начала', 'edit_start_date')],
-              [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
-              [Markup.button.callback('✏️ Описание', 'edit_description')],
-              [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
-              [Markup.button.callback(event.isCancelled ? '✅ Восстановить встречу' : '❌ Отменить встречу', 'toggle_cancel')],
-              [Markup.button.callback('🗑 Удалить встречу', 'delete_event')],
-              [Markup.button.callback('📋 Встречи', 'admin_events'), 
-               Markup.button.callback('🏠 Главное меню', 'main_menu')]
-            ];
-
             await ctx.editMessageText(
               `Редактирование встречи:\n\n` +
               `Название: ${event.title}\n` +
               `Дата начала: ${formatDate(event.startDate)}\n` +
               `Дата окончания: ${formatDate(event.endDate)}\n` +
               `Описание: ${event.description}\n` +
-              `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+              `Стоимость и варианты оплаты:\n` +
+              `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+              `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+              `\nСтатус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
               `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
               `Выберите поле для редактирования:`,
-              Markup.inlineKeyboard(buttons)
+              Markup.inlineKeyboard(getButtons(event))
             );
             return;
           case 'toggle_cancel':
@@ -288,29 +479,19 @@ export class TelegramBot {
             await this.dataSource.manager.save(event);
             await ctx.answerCbQuery(event.isCancelled ? 'Встреча отменена!' : 'Встреча восстановлена');
             
-            // Обновляем сообщение с новой информацией
-            const buttons2 = [
-              [Markup.button.callback('✏️ Название', 'edit_title')],
-              [Markup.button.callback('✏️ Дата начала', 'edit_start_date')],
-              [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
-              [Markup.button.callback('✏️ Описание', 'edit_description')],
-              [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
-              [Markup.button.callback(event.isCancelled ? '✅ Восстановить встречу' : '❌ Отменить встречу', 'toggle_cancel')],
-              [Markup.button.callback('🗑 Удалить встречу', 'delete_event')],
-              [Markup.button.callback('📋 Встречи', 'admin_events'), 
-               Markup.button.callback('🏠 Главное меню', 'main_menu')]
-            ];
-
             await ctx.editMessageText(
               `Редактирование встречи:\n\n` +
               `Название: ${event.title}\n` +
               `Дата начала: ${formatDate(event.startDate)}\n` +
               `Дата окончания: ${formatDate(event.endDate)}\n` +
               `Описание: ${event.description}\n` +
-              `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+              `Стоимость и варианты оплаты:\n` +
+              `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+              `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+              `\nСтатус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
               `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
               `Выберите поле для редактирования:`,
-              Markup.inlineKeyboard(buttons2)
+              Markup.inlineKeyboard(getButtons(event))
             );
             return;
           case 'delete_event':
@@ -342,6 +523,68 @@ export class TelegramBot {
                 [Markup.button.callback('Все', 'admin_all_events')],
                 [Markup.button.callback('◀️ Назад', 'admin')]
               ])
+            );
+            return;
+          case 'set_onsite_yes':
+            event.allowOnSitePayment = true;
+            await this.dataSource.manager.save(event);
+            await ctx.answerCbQuery('✅ Оплата при встрече разрешена');
+            
+            await ctx.editMessageText(
+              `Редактирование встречи:\n\n` +
+              `Название: ${event.title}\n` +
+              `Дата начала: ${formatDate(event.startDate)}\n` +
+              `Дата окончания: ${formatDate(event.endDate)}\n` +
+              `Описание: ${event.description}\n` +
+              `Стоимость и варианты оплаты:\n` +
+              `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+              `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+              `\nСтатус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+              `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
+              `Выберите поле для редактирования:`,
+              Markup.inlineKeyboard(getButtons(event))
+            );
+            return;
+          case 'set_onsite_no':
+            event.allowOnSitePayment = false;
+            await this.dataSource.manager.save(event);
+            await ctx.answerCbQuery('❌ Оплата при встрече запрещена');
+            
+            await ctx.editMessageText(
+              `Редактирование встречи:\n\n` +
+              `Название: ${event.title}\n` +
+              `Дата начала: ${formatDate(event.startDate)}\n` +
+              `Дата окончания: ${formatDate(event.endDate)}\n` +
+              `Описание: ${event.description}\n` +
+              `Стоимость и варианты оплаты:\n` +
+              `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+              `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+              `\nСтатус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+              `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
+              `Выберите поле для редактирования:`,
+              Markup.inlineKeyboard(getButtons(event))
+            );
+            return;
+          case 'set_deadline_day_before':
+            const deadline = new Date(event.startDate);
+            deadline.setDate(deadline.getDate() - 1);
+            event.advancePaymentDeadline = deadline;
+            await this.dataSource.manager.save(event);
+            await ctx.answerCbQuery('✅ Срок оплаты установлен за сутки до начала встречи');
+            
+            await ctx.editMessageText(
+              `Редактирование встречи:\n\n` +
+              `Название: ${event.title}\n` +
+              `Дата начала: ${formatDate(event.startDate)}\n` +
+              `Дата окончания: ${formatDate(event.endDate)}\n` +
+              `Описание: ${event.description}\n` +
+              `Стоимость и варианты оплаты:\n` +
+              `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+              `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+              `\nСтатус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+              `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
+              `Выберите поле для редактирования:`,
+              Markup.inlineKeyboard(getButtons(event))
             );
             return;
         }
@@ -405,6 +648,33 @@ export class TelegramBot {
             case 'description':
               event.description = newValue;
               break;
+            case 'fullPaymentAmount':
+              const fullAmount = parseFloat(newValue);
+              if (isNaN(fullAmount) || fullAmount < 0) {
+                await ctx.reply('Пожалуйста, введите корректную сумму (положительное число):');
+                return;
+              }
+              event.fullPaymentAmount = fullAmount;
+              break;
+            case 'advancePaymentAmount':
+              const advanceAmount = parseFloat(newValue);
+              if (isNaN(advanceAmount) || advanceAmount < 0) {
+                await ctx.reply('Пожалуйста, введите корректную сумму (положительное число):');
+                return;
+              }
+              event.advancePaymentAmount = advanceAmount === 0 ? null : advanceAmount;
+              if (advanceAmount === 0) {
+                event.advancePaymentDeadline = null;
+              }
+              break;
+            case 'advancePaymentDeadline':
+              const parsedDeadline = parseDateTime(newValue);
+              if (!parsedDeadline) {
+                await ctx.reply('Неверный формат даты. Пожалуйста, введите в формате ДД.ММ.ГГГГ, ЧЧ:ММ:');
+                return;
+              }
+              event.advancePaymentDeadline = parsedDeadline;
+              break;
           }
 
           await this.dataSource.manager.save(event);
@@ -416,6 +686,10 @@ export class TelegramBot {
             [Markup.button.callback('✏️ Дата начала', 'edit_start_date')],
             [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
             [Markup.button.callback('✏️ Описание', 'edit_description')],
+            [Markup.button.callback(`✏️ Возможно оплатить при встрече: ${event.allowOnSitePayment ? '✅ Да' : '❌ Нет'}`, 'edit_onsite_payment')],
+            [Markup.button.callback('✏️ Стоимость при встрече', 'edit_full_payment')],
+            [Markup.button.callback('✏️ Стоимость при оплате заранее', 'edit_advance_payment')],
+            [Markup.button.callback('✏️ Срок оплаты заранее', 'edit_advance_deadline')],
             [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
             [Markup.button.callback(event.isCancelled ? '✅ Восстановить встречу' : '❌ Отменить встречу', 'toggle_cancel')],
             [Markup.button.callback('🗑 Удалить встречу', 'delete_event')],
@@ -431,7 +705,10 @@ export class TelegramBot {
             `Описание: ${event.description}\n` +
             `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
             `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
-            `Выберите поле для редактирования:`,
+            `Стоимость и варианты оплаты:\n` +
+            `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+            `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+            `\nВыберите поле для редактирования:`,
             Markup.inlineKeyboard(buttons)
           );
           return ctx.wizard.back();
@@ -485,7 +762,10 @@ export class TelegramBot {
       
       await ctx.answerCbQuery('Встреча успешно опубликована!');
       await ctx.editMessageText(
-        `Встреча опубликована!\n\nНазвание: ${event.title}\nДата начала: ${formatDate(event.startDate)}\nДата окончания: ${formatDate(event.endDate)}\nОписание: ${event.description}\n\nСтатус: Опубликована`,
+        `Встреча опубликована!\n\nНазвание: ${event.title}\nДата начала: ${formatDate(event.startDate)}\nДата окончания: ${formatDate(event.endDate)}\nОписание: ${event.description}\n\nСтоимость и варианты оплаты:\n` +
+        `${event.allowOnSitePayment ? `• ${event.fullPaymentAmount} грн. в случае оплаты при встрече\n` : ''}` +
+        `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? `, не позднее ${formatDate(event.advancePaymentDeadline)}` : ''}\n` : ''}` +
+        `\nСтатус: Опубликована`,
         Markup.inlineKeyboard([
           [Markup.button.callback('Редактировать', `edit_event_${event.id}`)]
         ])
@@ -619,7 +899,10 @@ export class TelegramBot {
           `📅 ${event.title}\n` +
           `Дата начала: ${formatDate(event.startDate)}\n` +
           `Дата окончания: ${formatDate(event.endDate)}\n` +
-          `Участников: ${event.participants.length}`,
+          `Стоимость и варианты оплаты:\n` +
+          `${event.allowOnSitePayment ? `• ${event.fullPaymentAmount} грн. в случае оплаты при встрече\n` : ''}` +
+          `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? `, не позднее ${formatDate(event.advancePaymentDeadline)}` : ''}\n` : ''}` +
+          `\nСтатус: ${event.isPublished ? 'Опубликована' : 'Черновик'}`,
           Markup.inlineKeyboard(buttons)
         );
       }
@@ -644,37 +927,63 @@ export class TelegramBot {
         return;
       }
 
-      const participant = new EventParticipant();
-      let user = await this.dataSource.manager.findOne(User, { where: { telegramId: ctx.from!.id } });
-      if (!user) {
-        user = new User();
-        user.telegramId = ctx.from!.id;
-        user.username = ctx.from?.username || null;
-        user.firstName = ctx.from?.first_name || null;
-        user.lastName = ctx.from?.last_name || null;
-        await this.dataSource.manager.save(user);
+      // Формируем сообщение с информацией о встрече
+      let messageText = `📅 ${event.title}\n\n` +
+        `📝 Описание:\n${event.description}\n\n` +
+        `🕒 Дата начала: ${formatDate(event.startDate)}\n` +
+        `🕕 Дата окончания: ${formatDate(event.endDate)}\n` +
+        `📍 Место: ${event.location || 'Не указано'}\n\n` +
+        `Стоимость и варианты оплаты:\n` +
+        `${event.allowOnSitePayment ? `• ${event.fullPaymentAmount} грн. в случае оплаты при встрече\n` : ''}` +
+        `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? `, не позднее ${formatDate(event.advancePaymentDeadline)}` : ''}\n` : ''}` +
+        `\nВыберите вариант оплаты:`;
+
+      // Формируем кнопки в зависимости от доступных вариантов оплаты
+      const buttons = [];
+
+      const now = new Date();
+      if (event.allowOnSitePayment) {
+        buttons.push([Markup.button.callback(`💵 Оплата при встрече (${event.fullPaymentAmount} грн)`, `payment_onsite_${event.id}`)]);
       }
-      participant.user = user;
-      participant.event = event;
-      await this.dataSource.manager.save(participant);
 
-      await ctx.answerCbQuery('Вы успешно присоединились к встрече!');
-      
-      // Обновляем сообщение
-      const buttons = [
-        [Markup.button.callback('📋 Подробнее', `event_details_${event.id}`)],
-        [
-          Markup.button.callback('❌ Отменить участие', `leave_event_${event.id}`),
-          Markup.button.callback('💳 Оплатить', `pay_event_${event.id}`)
-        ]
-      ];
+      if (event.advancePaymentAmount && event.advancePaymentDeadline && now < event.advancePaymentDeadline) {
+        buttons.push([Markup.button.callback(`💳 Оплатить заранее (${event.advancePaymentAmount} грн)`, `payment_advance_${event.id}`)]);
+        buttons.push([Markup.button.callback('⏰ Напомнить позже', `remind_later_${event.id}`)]);
+      } else if (event.fullPaymentAmount && (!event.advancePaymentAmount || (event.advancePaymentDeadline && now >= event.advancePaymentDeadline))) {
+        buttons.push([Markup.button.callback(`💳 Полная оплата (${event.fullPaymentAmount} грн)`, `payment_full_${event.id}`)]);
+      }
 
+      buttons.push([Markup.button.callback('❌ Отменить участие', `cancel_join_${event.id}`)]);
+
+      await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons));
+    });
+
+    // Обработчики для различных вариантов оплаты
+    this.bot.action(/^payment_onsite_(\d+)$/, async (ctx) => {
+      const eventId = parseInt(ctx.match[1]);
+      await this.joinEvent(ctx, eventId, ParticipationStatus.PAYMENT_ON_SITE);
+    });
+
+    this.bot.action(/^payment_partial_(\d+)$/, async (ctx) => {
+      const eventId = parseInt(ctx.match[1]);
+      await this.joinEvent(ctx, eventId, ParticipationStatus.PENDING_PAYMENT);
+    });
+
+    this.bot.action(/^payment_advance_(\d+)$/, async (ctx) => {
+      const eventId = parseInt(ctx.match[1]);
+      await this.joinEvent(ctx, eventId, ParticipationStatus.PENDING_PAYMENT);
+    });
+
+    this.bot.action(/^payment_full_(\d+)$/, async (ctx) => {
+      const eventId = parseInt(ctx.match[1]);
+      await this.joinEvent(ctx, eventId, ParticipationStatus.PENDING_PAYMENT);
+    });
+
+    this.bot.action(/^cancel_join_(\d+)$/, async (ctx) => {
+      await ctx.answerCbQuery();
       await ctx.editMessageText(
-        `📅 ${event.title}\n` +
-        `Дата начала: ${formatDate(event.startDate)}\n` +
-        `Дата окончания: ${formatDate(event.endDate)}\n` +
-        `Участников: ${event.participants.length + 1}`,
-        Markup.inlineKeyboard(buttons)
+        'Регистрация отменена',
+        Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к списку встреч', 'new_events')]])
       );
     });
 
@@ -711,7 +1020,10 @@ export class TelegramBot {
           `📅 ${event.title}\n` +
           `Дата начала: ${formatDate(event.startDate)}\n` +
           `Дата окончания: ${formatDate(event.endDate)}\n` +
-          `Участников: ${event.participants.length}`,
+          `Стоимость и варианты оплаты:\n` +
+          `${event.allowOnSitePayment ? `• ${event.fullPaymentAmount} грн. в случае оплаты при встрече\n` : ''}` +
+          `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? `, не позднее ${formatDate(event.advancePaymentDeadline)}` : ''}\n` : ''}` +
+          `\nСтатус: ${event.isPublished ? 'Опубликована' : 'Черновик'}`,
           Markup.inlineKeyboard(buttons)
         );
       }
@@ -802,6 +1114,9 @@ export class TelegramBot {
         messageText += `📅 ${event.title}\n` +
           `Дата начала: ${formatDate(event.startDate)}\n` +
           `Дата окончания: ${formatDate(event.endDate)}\n` +
+          `Стоимость и варианты оплаты:\n` +
+          `${event.allowOnSitePayment ? `• ${event.fullPaymentAmount} грн. в случае оплаты при встрече\n` : ''}` +
+          `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? `, не позднее ${formatDate(event.advancePaymentDeadline)}` : ''}\n` : ''}` +
           `Статус оплаты: ${participant?.status === ParticipationStatus.PAYMENT_CONFIRMED ? '✅ Оплачено' : '❌ Не оплачено'}\n\n`;
       }
 
@@ -848,6 +1163,9 @@ export class TelegramBot {
         messageText += `📅 ${event.title}\n` +
           `Дата начала: ${formatDate(event.startDate)}\n` +
           `Дата окончания: ${formatDate(event.endDate)}\n` +
+          `Стоимость и варианты оплаты:\n` +
+          `${event.allowOnSitePayment ? `• ${event.fullPaymentAmount} грн. в случае оплаты при встрече\n` : ''}` +
+          `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? `, не позднее ${formatDate(event.advancePaymentDeadline)}` : ''}\n` : ''}` +
           `Статус: ${event.isCancelled ? '❌ Отменена' : '✅ Завершена'}\n` +
           `Статус оплаты: ${participant?.status === ParticipationStatus.PAYMENT_CONFIRMED ? '✅ Оплачено' : '❌ Не оплачено'}\n\n`;
       }
@@ -860,6 +1178,15 @@ export class TelegramBot {
       await ctx.editMessageText(
         messageText,
         Markup.inlineKeyboard(buttons)
+      );
+    });
+
+    this.bot.action(/^remind_later_(\d+)$/, async (ctx) => {
+      const eventId = parseInt(ctx.match[1]);
+      await ctx.answerCbQuery('Мы напомним вам об оплате позже');
+      await ctx.editMessageText(
+        'Мы напомним вам об оплате позже. Вы можете вернуться к списку встреч.',
+        Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к списку встреч', 'new_events')]])
       );
     });
   }
@@ -886,11 +1213,60 @@ export class TelegramBot {
       Markup.button.callback(`✏️ Редактировать "${event.title}"`, `edit_event_${event.id}`)
     ]);
 
-    // Добавляем кнопку "Назад"
     buttons.push([Markup.button.callback('◀️ Назад', 'admin_events')]);
 
     await ctx.editMessageText(
       `${title}:\n\n${messageText}`,
+      Markup.inlineKeyboard(buttons)
+    );
+  }
+
+  private async joinEvent(ctx: any, eventId: number, status: ParticipationStatus) {
+    const event = await this.dataSource.manager.findOne(Event, {
+      where: { id: eventId },
+      relations: ['participants']
+    });
+
+    if (!event) {
+      await ctx.answerCbQuery('Встреча не найдена');
+      return;
+    }
+
+    let user = await this.dataSource.manager.findOne(User, { where: { telegramId: ctx.from!.id } });
+    if (!user) {
+      user = new User();
+      user.telegramId = ctx.from!.id;
+      user.username = ctx.from?.username || null;
+      user.firstName = ctx.from?.first_name || null;
+      user.lastName = ctx.from?.last_name || null;
+      await this.dataSource.manager.save(user);
+    }
+
+    const participant = new EventParticipant();
+    participant.user = user;
+    participant.event = event;
+    participant.status = status;
+    await this.dataSource.manager.save(participant);
+
+    await ctx.answerCbQuery('Вы успешно зарегистрировались на встречу!');
+    
+    // Обновляем сообщение
+    const buttons = [
+      [Markup.button.callback('📋 Подробнее', `event_details_${event.id}`)],
+      [
+        Markup.button.callback('❌ Отменить участие', `leave_event_${event.id}`),
+        Markup.button.callback('💳 Оплатить', `pay_event_${event.id}`)
+      ]
+    ];
+
+    await ctx.editMessageText(
+      `📅 ${event.title}\n` +
+      `Дата начала: ${formatDate(event.startDate)}\n` +
+      `Дата окончания: ${formatDate(event.endDate)}\n` +
+      `Стоимость и варианты оплаты:\n` +
+      `${event.allowOnSitePayment ? `• ${event.fullPaymentAmount} грн. в случае оплаты при встрече\n` : ''}` +
+      `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? `, не позднее ${formatDate(event.advancePaymentDeadline)}` : ''}\n` : ''}` +
+      `\nСтатус: ${event.isPublished ? 'Опубликована' : 'Черновик'}`,
       Markup.inlineKeyboard(buttons)
     );
   }
@@ -901,13 +1277,6 @@ export class TelegramBot {
   
   public async setWebhook(url: string) {
     await this.bot.telegram.setWebhook(url);
-  }
-
-  private setupErrorHandling(): void {
-    this.bot.catch((err: any, ctx: Context) => {
-      console.error(`Error for ${ctx.updateType}:`, err);
-      ctx.reply('Произошла ошибка при обработке запроса').catch(console.error);
-    });
   }
 
   private log(message: string, data?: any): void {
@@ -1058,6 +1427,16 @@ export class TelegramBot {
         ])
       );
     });
+
+    this.bot.action('create_event', async (ctx) => {
+      await ctx.answerCbQuery();
+      if (!isAdmin(ctx.from?.id)) {
+        return ctx.reply('У вас нет прав администратора.');
+      }
+      // Запускаем сцену создания встречи
+      // @ts-ignore
+      ctx.scene.enter('create-event-wizard');
+    });
   }
 
   public addAdminFeatures() {
@@ -1069,6 +1448,13 @@ export class TelegramBot {
       // Запускаем сцену создания встречи
       // @ts-ignore
       ctx.scene.enter('create-event-wizard');
+    });
+  }
+
+  private setupErrorHandling(): void {
+    this.bot.catch((err: any, ctx: Context) => {
+      console.error(`Error for ${ctx.updateType}:`, err);
+      ctx.reply('Произошла ошибка при обработке запроса').catch(console.error);
     });
   }
 }
