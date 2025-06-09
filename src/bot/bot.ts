@@ -178,6 +178,7 @@ export class TelegramBot {
           [Markup.button.callback('✏️ Описание', 'edit_description')],
           [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
           [Markup.button.callback(event.isCancelled ? '✅ Восстановить встречу' : '❌ Отменить встречу', 'toggle_cancel')],
+          [Markup.button.callback('🗑 Удалить встречу', 'delete_event')],
           [Markup.button.callback('📋 Встречи', 'admin_events'), 
            Markup.button.callback('🏠 Главное меню', 'main_menu')]
         ];
@@ -255,6 +256,7 @@ export class TelegramBot {
               [Markup.button.callback('✏️ Описание', 'edit_description')],
               [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
               [Markup.button.callback(event.isCancelled ? '✅ Восстановить встречу' : '❌ Отменить встречу', 'toggle_cancel')],
+              [Markup.button.callback('🗑 Удалить встречу', 'delete_event')],
               [Markup.button.callback('📋 Встречи', 'admin_events'), 
                Markup.button.callback('🏠 Главное меню', 'main_menu')]
             ];
@@ -270,7 +272,7 @@ export class TelegramBot {
               `Выберите поле для редактирования:`,
               Markup.inlineKeyboard(buttons)
             );
-            return; // Остаемся на текущем шаге
+            return;
           case 'toggle_cancel':
             event.isCancelled = !event.isCancelled;
             await this.dataSource.manager.save(event);
@@ -284,6 +286,7 @@ export class TelegramBot {
               [Markup.button.callback('✏️ Описание', 'edit_description')],
               [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
               [Markup.button.callback(event.isCancelled ? '✅ Восстановить встречу' : '❌ Отменить встречу', 'toggle_cancel')],
+              [Markup.button.callback('🗑 Удалить встречу', 'delete_event')],
               [Markup.button.callback('📋 Встречи', 'admin_events'), 
                Markup.button.callback('🏠 Главное меню', 'main_menu')]
             ];
@@ -300,6 +303,16 @@ export class TelegramBot {
               Markup.inlineKeyboard(buttons2)
             );
             return;
+          case 'delete_event':
+            await ctx.reply(
+              '⚠️ ВНИМАНИЕ: Это действие необратимо!\n' +
+              'Для подтверждения удаления встречи введите пинкод:',
+              Markup.inlineKeyboard([[Markup.button.callback('❌ Отменить удаление', 'cancel_delete')]])
+            );
+            return ctx.wizard.next();
+          case 'cancel_delete':
+            await ctx.reply('✅ Удаление отменено.');
+            return ctx.wizard.back();
           case 'cancel_edit':
             await ctx.reply('Редактирование отменено.');
             return ctx.wizard.back();
@@ -323,69 +336,22 @@ export class TelegramBot {
         return ctx.wizard.next();
       },
       async (ctx: any) => {
-        const eventId = ctx.scene.state.eventId;
-        const event = await this.dataSource.manager.findOneBy(Event, { id: eventId });
-        const field = ctx.scene.state.editingField;
-        const newValue = ctx.message.text;
-
-        if (!event) {
-          await ctx.reply('Встреча не найдена.');
-          return ctx.scene.leave();
-        }
-
-        try {
-          switch (field) {
-            case 'title':
-              event.title = newValue;
-              break;
-            case 'startDate':
-              const parsedStartDate = parseDateTime(newValue);
-              if (!parsedStartDate) {
-                await ctx.reply('Неверный формат даты. Пожалуйста, введите в формате ДД.ММ.ГГГГ, ЧЧ:ММ:');
-                return;
-              }
-              event.startDate = parsedStartDate;
-              break;
-            case 'endDate':
-              const parsedEndDate = parseDateTime(newValue);
-              if (!parsedEndDate) {
-                await ctx.reply('Неверный формат даты. Пожалуйста, введите в формате ДД.ММ.ГГГГ, ЧЧ:ММ:');
-                return;
-              }
-              event.endDate = parsedEndDate;
-              break;
-            case 'description':
-              event.description = newValue;
-              break;
+        const pin = ctx.message.text;
+        if (pin === '7777') {
+          const eventId = ctx.scene.state.eventId;
+          const event = await this.dataSource.manager.findOneBy(Event, { id: eventId });
+          if (event) {
+            await this.dataSource.manager.remove(event);
+            await ctx.reply('✅ Встреча успешно удалена.');
+            await ctx.scene.leave();
+            await ctx.scene.enter('main-menu');
+          } else {
+            await ctx.reply('❌ Встреча не найдена.');
+            return ctx.scene.leave();
           }
-
-          await this.dataSource.manager.save(event);
-          await ctx.reply('Поле успешно обновлено!');
-          
-          // Показываем обновленную информацию о встрече
-          const buttons = [
-            [Markup.button.callback('✏️ Название', 'edit_title')],
-            [Markup.button.callback('✏️ Дата начала', 'edit_start_date')],
-            [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
-            [Markup.button.callback('✏️ Описание', 'edit_description')],
-            [Markup.button.callback('📋 Встречи', 'admin_events'), 
-             Markup.button.callback('🏠 Главное меню', 'main_menu')]
-          ];
-
-          await ctx.reply(
-            `Обновленная информация о встрече:\n\n` +
-            `Название: ${event.title}\n` +
-            `Дата начала: ${formatDate(event.startDate)}\n` +
-            `Дата окончания: ${formatDate(event.endDate)}\n` +
-            `Описание: ${event.description}\n\n` +
-            `Выберите поле для редактирования:`,
-            Markup.inlineKeyboard(buttons)
-          );
-          return ctx.wizard.back();
-        } catch (error) {
-          console.error('Ошибка при обновлении поля:', error);
-          await ctx.reply('Произошла ошибка при обновлении поля. Попробуйте еще раз.');
-          return ctx.wizard.back();
+        } else {
+          await ctx.reply('❌ Неверный пинкод. Попробуйте еще раз или отмените удаление.');
+          return;
         }
       }
     );
