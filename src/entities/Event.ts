@@ -8,22 +8,21 @@ export class Event {
   @Column()
   title!: string;
 
-  @Column()
+  @Column({ nullable: true })
   description!: string;
 
-  @Column()
+  @Column({ nullable: true })
   startDate!: Date;
   
-  @Column()
+  @Column({ nullable: true })
   endDate!: Date;
 
-  @Column()
+  @Column({ nullable: true })
   location!: string;
 
-  @Column()
+  @Column('simple-array', { nullable: true })
   participants!: string[];
   
-  @Column()
+  @Column('boolean', { default: false })
   isPublished!: boolean;
-  
 }
