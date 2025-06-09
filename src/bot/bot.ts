@@ -711,7 +711,7 @@ export class TelegramBot {
           `📅 ${event.title}\n` +
           `Дата начала: ${formatDate(event.startDate)}\n` +
           `Дата окончания: ${formatDate(event.endDate)}\n` +
-          `Участников: ${event.participants.length - 1}`,
+          `Участников: ${event.participants.length}`,
           Markup.inlineKeyboard(buttons)
         );
       }
