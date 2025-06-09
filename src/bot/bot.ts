@@ -24,7 +24,8 @@ function parseDateTime(dateTimeStr: string): Date | null {
   return date;
 }
 
-function formatDate(date: Date): string {
+function formatDate(date: Date | null): string {
+  if (!date) return 'Не указана';
   const day = String(date.getDate()).padStart(2, '0');
   const month = String(date.getMonth() + 1).padStart(2, '0'); // Месяцы в JS Date начинаются с 0
   const year = date.getFullYear();
@@ -175,7 +176,8 @@ export class TelegramBot {
           [Markup.button.callback('✏️ Дата начала', 'edit_start_date')],
           [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
           [Markup.button.callback('✏️ Описание', 'edit_description')],
-          [Markup.button.callback('◀️ Назад', 'main_menu'), 
+          [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
+          [Markup.button.callback('📋 Встречи', 'admin_events'), 
            Markup.button.callback('🏠 Главное меню', 'main_menu')]
         ];
 
@@ -184,7 +186,8 @@ export class TelegramBot {
           `Название: ${event.title}\n` +
           `Дата начала: ${formatDate(event.startDate)}\n` +
           `Дата окончания: ${formatDate(event.endDate)}\n` +
-          `Описание: ${event.description}\n\n` +
+          `Описание: ${event.description}\n` +
+          `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n\n` +
           `Выберите поле для редактирования:`,
           Markup.inlineKeyboard(buttons)
         );
@@ -233,13 +236,55 @@ export class TelegramBot {
               Markup.inlineKeyboard([[Markup.button.callback('❌ Отменить редактирование', 'cancel_edit')]])
             );
             break;
+          case 'toggle_publish':
+            if (!isEventComplete(event)) {
+              await ctx.answerCbQuery('Не все поля заполнены. Заполните все обязательные поля перед публикацией.');
+              return;
+            }
+            event.isPublished = !event.isPublished;
+            await this.dataSource.manager.save(event);
+            await ctx.answerCbQuery(event.isPublished ? 'Встреча опубликована!' : 'Встреча сделана черновиком');
+            
+            // Обновляем сообщение с новой информацией
+            const buttons = [
+              [Markup.button.callback('✏️ Название', 'edit_title')],
+              [Markup.button.callback('✏️ Дата начала', 'edit_start_date')],
+              [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
+              [Markup.button.callback('✏️ Описание', 'edit_description')],
+              [Markup.button.callback(event.isPublished ? '📝 Сделать черновиком' : '✅ Опубликовать', 'toggle_publish')],
+              [Markup.button.callback('📋 Встречи', 'admin_events'), 
+               Markup.button.callback('🏠 Главное меню', 'main_menu')]
+            ];
+
+            await ctx.editMessageText(
+              `Редактирование встречи:\n\n` +
+              `Название: ${event.title}\n` +
+              `Дата начала: ${formatDate(event.startDate)}\n` +
+              `Дата окончания: ${formatDate(event.endDate)}\n` +
+              `Описание: ${event.description}\n` +
+              `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n\n` +
+              `Выберите поле для редактирования:`,
+              Markup.inlineKeyboard(buttons)
+            );
+            return; // Остаемся на текущем шаге
           case 'cancel_edit':
             await ctx.reply('Редактирование отменено.');
             return ctx.wizard.back();
           case 'main_menu':
             await ctx.scene.leave();
-            // @ts-ignore
-            ctx.scene.enter('main-menu');
+            await ctx.scene.enter('main-menu');
+            return;
+          case 'admin_events':
+            await ctx.scene.leave();
+            await ctx.editMessageText(
+              'Выберите тип встреч:',
+              Markup.inlineKeyboard([
+                [Markup.button.callback('Ближайшие', 'admin_upcoming_events')],
+                [Markup.button.callback('Прошедшие', 'admin_past_events')],
+                [Markup.button.callback('Все', 'admin_all_events')],
+                [Markup.button.callback('◀️ Назад', 'admin')]
+              ])
+            );
             return;
         }
         return ctx.wizard.next();
@@ -290,7 +335,7 @@ export class TelegramBot {
             [Markup.button.callback('✏️ Дата начала', 'edit_start_date')],
             [Markup.button.callback('✏️ Дата окончания', 'edit_end_date')],
             [Markup.button.callback('✏️ Описание', 'edit_description')],
-            [Markup.button.callback('◀️ Назад', 'main_menu'), 
+            [Markup.button.callback('📋 Встречи', 'admin_events'), 
              Markup.button.callback('🏠 Главное меню', 'main_menu')]
           ];
 
@@ -312,7 +357,25 @@ export class TelegramBot {
       }
     );
 
-    this.stage = new Scenes.Stage<Scenes.WizardContext>([createEventWizard, editEventWizard]);
+    // Сцена главного меню
+    const mainMenuScene = new Scenes.BaseScene<Scenes.WizardContext>('main-menu');
+    mainMenuScene.enter(async (ctx) => {
+      const buttons = [
+        [Markup.button.callback('Ближайшие встречи', 'new_events'), Markup.button.callback('Мои встречи', 'my_events')],
+        [Markup.button.callback('Отзывы', 'reviews'), Markup.button.callback('О клубе', 'info')],
+        [Markup.button.callback('Помощь', 'help')]
+      ];
+      if (isAdmin(ctx.from?.id)) {
+        buttons.push([Markup.button.callback('Админка', 'admin')]);
+      }
+      await ctx.reply(
+        'Главное меню:',
+        Markup.inlineKeyboard(buttons)
+      );
+    });
+
+    this.stage = new Scenes.Stage<Scenes.WizardContext>([createEventWizard, editEventWizard, mainMenuScene]);
+    
     this.bot.use(session());
     this.bot.use(this.stage.middleware());
 
@@ -413,6 +476,23 @@ export class TelegramBot {
         }
       });
       await this.sendEventsList(ctx, events, 'Все встречи');
+    });
+
+    // Добавляем обработчик для кнопки "Главное меню"
+    this.bot.action('main_menu', async (ctx) => {
+      await ctx.answerCbQuery();
+      const buttons = [
+        [Markup.button.callback('Ближайшие встречи', 'new_events'), Markup.button.callback('Мои встречи', 'my_events')],
+        [Markup.button.callback('Отзывы', 'reviews'), Markup.button.callback('О клубе', 'info')],
+        [Markup.button.callback('Помощь', 'help')]
+      ];
+      if (isAdmin(ctx.from?.id)) {
+        buttons.push([Markup.button.callback('Админка', 'admin')]);
+      }
+      await ctx.editMessageText(
+        'Главное меню:',
+        Markup.inlineKeyboard(buttons)
+      );
     });
   }
 
@@ -577,7 +657,6 @@ export class TelegramBot {
   }
 
   public addAdminFeatures() {
-
     this.bot.action('create_event', async (ctx) => {
       await ctx.answerCbQuery();
       if (!isAdmin(ctx.from?.id)) {
@@ -587,7 +666,5 @@ export class TelegramBot {
       // @ts-ignore
       ctx.scene.enter('create-event-wizard');
     });
-
-    // Аналогично реализуйте команды для редактирования/удаления
   }
 }
