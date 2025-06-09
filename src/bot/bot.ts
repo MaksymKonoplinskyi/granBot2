@@ -6,7 +6,7 @@ import { Event } from '../entities/Event';
 import { ADMINS } from '../config';
 import { WizardContext } from 'telegraf/typings/scenes';
 import { MoreThan, LessThan } from 'typeorm';
-import { EventParticipant } from '../entities/EventParticipant';
+import { EventParticipant, ParticipationStatus } from '../entities/EventParticipant';
 import { User } from '../entities/User';
 
 // Настройки логирования
@@ -755,6 +755,112 @@ export class TelegramBot {
 
     this.bot.action(/^pay_event_(\d+)$/, async (ctx) => {
       await ctx.answerCbQuery('Функция оплаты будет добавлена позже');
+    });
+
+    this.bot.action('my_events', async (ctx) => {
+      await ctx.answerCbQuery();
+      await ctx.editMessageText(
+        'Мои встречи:',
+        Markup.inlineKeyboard([
+          [Markup.button.callback('Ближайшие', 'my_upcoming_events')],
+          [Markup.button.callback('Прошедшие', 'my_past_events')],
+          [Markup.button.callback('◀️ Назад', 'main_menu')]
+        ])
+      );
+    });
+
+    this.bot.action('my_upcoming_events', async (ctx) => {
+      const now = new Date();
+      const events = await this.dataSource.manager.find(Event, {
+        where: {
+          startDate: MoreThan(now),
+          isPublished: true,
+          isCancelled: false,
+          participants: {
+            user: {
+              telegramId: ctx.from?.id
+            }
+          }
+        },
+        relations: ['participants'],
+        order: {
+          startDate: 'ASC'
+        }
+      });
+
+      if (events.length === 0) {
+        await ctx.editMessageText(
+          'У вас нет предстоящих встреч.',
+          Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад', 'my_events')]])
+        );
+        return;
+      }
+
+      let messageText = 'Ваши предстоящие встречи:\n\n';
+      for (const event of events) {
+        const participant = event.participants.find(p => p.user.telegramId === ctx.from?.id);
+        messageText += `📅 ${event.title}\n` +
+          `Дата начала: ${formatDate(event.startDate)}\n` +
+          `Дата окончания: ${formatDate(event.endDate)}\n` +
+          `Статус оплаты: ${participant?.status === ParticipationStatus.PAYMENT_CONFIRMED ? '✅ Оплачено' : '❌ Не оплачено'}\n\n`;
+      }
+
+      const buttons = events.map(event => [
+        Markup.button.callback(`📋 Подробнее "${event.title}"`, `event_details_${event.id}`)
+      ]);
+      buttons.push([Markup.button.callback('◀️ Назад', 'my_events')]);
+
+      await ctx.editMessageText(
+        messageText,
+        Markup.inlineKeyboard(buttons)
+      );
+    });
+
+    this.bot.action('my_past_events', async (ctx) => {
+      const now = new Date();
+      const events = await this.dataSource.manager.find(Event, {
+        where: {
+          startDate: LessThan(now),
+          isPublished: true,
+          participants: {
+            user: {
+              telegramId: ctx.from?.id
+            }
+          }
+        },
+        relations: ['participants'],
+        order: {
+          startDate: 'DESC'
+        }
+      });
+
+      if (events.length === 0) {
+        await ctx.editMessageText(
+          'У вас нет прошедших встреч.',
+          Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад', 'my_events')]])
+        );
+        return;
+      }
+
+      let messageText = 'Ваши прошедшие встречи:\n\n';
+      for (const event of events) {
+        const participant = event.participants.find(p => p.user.telegramId === ctx.from?.id);
+        messageText += `📅 ${event.title}\n` +
+          `Дата начала: ${formatDate(event.startDate)}\n` +
+          `Дата окончания: ${formatDate(event.endDate)}\n` +
+          `Статус: ${event.isCancelled ? '❌ Отменена' : '✅ Завершена'}\n` +
+          `Статус оплаты: ${participant?.status === ParticipationStatus.PAYMENT_CONFIRMED ? '✅ Оплачено' : '❌ Не оплачено'}\n\n`;
+      }
+
+      const buttons = events.map(event => [
+        Markup.button.callback(`📋 Подробнее "${event.title}"`, `event_details_${event.id}`)
+      ]);
+      buttons.push([Markup.button.callback('◀️ Назад', 'my_events')]);
+
+      await ctx.editMessageText(
+        messageText,
+        Markup.inlineKeyboard(buttons)
+      );
     });
   }
 
