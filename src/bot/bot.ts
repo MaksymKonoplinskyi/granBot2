@@ -542,9 +542,9 @@ export class TelegramBot {
             await ctx.editMessageText(
               'Выберите тип встреч:',
               Markup.inlineKeyboard([
-                [Markup.button.callback('Ближайшие', 'admin_upcoming_events')],
-                [Markup.button.callback('Прошедшие', 'admin_past_events')],
-                [Markup.button.callback('Все', 'admin_all_events')],
+                [Markup.button.callback('📅 Ближайшие', 'admin_upcoming_events'),
+                 Markup.button.callback('📅 Прошедшие', 'admin_past_events')],
+                [Markup.button.callback('📅 Все', 'admin_all_events')],
                 [Markup.button.callback('◀️ Назад', 'admin')]
               ])
             );
@@ -902,15 +902,13 @@ export class TelegramBot {
         await ctx.answerCbQuery('У вас нет прав администратора');
         return;
       }
-
       await ctx.answerCbQuery();
       await ctx.editMessageText(
         'Админ-панель:',
         Markup.inlineKeyboard([
-          [Markup.button.callback('📝 Создать встречу', 'create_event')],
-          [Markup.button.callback('📋 Список встреч', 'admin_events')],
-          [Markup.button.callback('💳 Реквизиты для оплаты', 'payment_details')],
-          [Markup.button.callback('◀️ Назад', 'main_menu')]
+          [Markup.button.callback('📋 Встречи', 'admin_events'), 
+           Markup.button.callback('💳 Реквизиты для оплаты', 'payment_details')],
+          [Markup.button.callback('🏠 Главное меню', 'main_menu')]
         ])
       );
     });
@@ -950,9 +948,9 @@ export class TelegramBot {
       await ctx.editMessageText(
         'Выберите тип встреч:',
         Markup.inlineKeyboard([
-          [Markup.button.callback('Ближайшие', 'admin_upcoming_events')],
-          [Markup.button.callback('Прошедшие', 'admin_past_events')],
-          [Markup.button.callback('Все', 'admin_all_events')],
+          [Markup.button.callback('📅 Ближайшие', 'admin_upcoming_events'),
+           Markup.button.callback('📅 Прошедшие', 'admin_past_events')],
+          [Markup.button.callback('📅 Все', 'admin_all_events')],
           [Markup.button.callback('◀️ Назад', 'admin')]
         ])
       );
@@ -1646,15 +1644,13 @@ export class TelegramBot {
         await ctx.answerCbQuery('У вас нет прав администратора');
         return;
       }
-
       await ctx.answerCbQuery();
       await ctx.editMessageText(
         'Админ-панель:',
         Markup.inlineKeyboard([
-          [Markup.button.callback('📝 Создать встречу', 'create_event')],
-          [Markup.button.callback('📋 Список встреч', 'admin_events')],
-          [Markup.button.callback('💳 Реквизиты для оплаты', 'payment_details')],
-          [Markup.button.callback('◀️ Назад', 'main_menu')]
+          [Markup.button.callback('📋 Встречи', 'admin_events'), 
+           Markup.button.callback('💳 Реквизиты для оплаты', 'payment_details')],
+          [Markup.button.callback('🏠 Главное меню', 'main_menu')]
         ])
       );
     });
