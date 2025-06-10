@@ -3,7 +3,7 @@ import { DataSource } from 'typeorm';
 import { Event } from './entities/Event';
 import { EventParticipant } from './entities/EventParticipant';
 import { User } from './entities/User';
-// ADMINS больше не нужен здесь, если он используется только в bot.ts
+import { PaymentDetails } from './entities/PaymentDetails';
 
 export function getDataSource(verbose: boolean = false): DataSource {
   return new DataSource({
@@ -15,8 +15,6 @@ export function getDataSource(verbose: boolean = false): DataSource {
     database: process.env.DB_NAME,
     synchronize: true, // В проде лучше false!
     logging: verbose,
-    entities: [Event, EventParticipant, User],
+    entities: [Event, EventParticipant, User, PaymentDetails],
   });
 }
-
-// Убираем AppDataSource.initialize() отсюда

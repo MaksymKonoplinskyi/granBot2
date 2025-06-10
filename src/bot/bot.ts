@@ -8,6 +8,7 @@ import { WizardContext } from 'telegraf/typings/scenes';
 import { MoreThan, LessThan } from 'typeorm';
 import { EventParticipant, ParticipationStatus } from '../entities/EventParticipant';
 import { User } from '../entities/User';
+import { PaymentDetails } from '../entities/PaymentDetails';
 
 // Настройки логирования
 interface LoggingConfig {
@@ -51,17 +52,38 @@ function isEventComplete(event: Event): boolean {
   );
 }
 
+interface PaymentDetailsSceneState {
+  title: string;
+  detailsId?: number;
+  editing?: boolean;
+}
+
+interface EventSceneState {
+  event: any;
+  eventId?: number;
+  editingField?: string;
+  deleting?: boolean;
+}
+
+interface WizardSessionData extends Scenes.WizardSessionData {
+  state: PaymentDetailsSceneState | EventSceneState;
+}
+
+type BotContext = Scenes.WizardContext<WizardSessionData> & {
+  match?: RegExpMatchArray;
+};
+
 export class TelegramBot {
-  private readonly bot: Telegraf<Scenes.WizardContext>;
+  private readonly bot: Telegraf<BotContext>;
   private isInitialized = false;
-  private stage: Scenes.Stage<Scenes.WizardContext>;
+  private stage: Scenes.Stage<BotContext>;
   private readonly dataSource: DataSource;
   private readonly loggingConfig: LoggingConfig;
 
   constructor(private readonly token: string, dataSource: DataSource, loggingConfig: LoggingConfig = { verbose: false }) {
     this.dataSource = dataSource;
     this.loggingConfig = loggingConfig;
-    this.bot = new Telegraf<Scenes.WizardContext>(this.token);
+    this.bot = new Telegraf<BotContext>(this.token);
     this.setupErrorHandling();
 
     // Устанавливаем меню команд
@@ -73,14 +95,15 @@ export class TelegramBot {
     ]);
 
     // --- WizardScene для создания встречи ---
-    const createEventWizard = new Scenes.WizardScene(
+    const createEventWizard = new Scenes.WizardScene<BotContext>(
       'create-event-wizard',
-      async (ctx: any) => {
+      async (ctx: BotContext) => {
         if (!isAdmin(ctx.from?.id)) {
           await ctx.reply('У вас нет прав администратора.');
           return ctx.scene.leave();
         }
-        ctx.scene.session.event = {};
+        const state = ctx.scene.state as EventSceneState;
+        state.event = {};
         await ctx.reply('Этап 1/7: Введите название встречи:');
         return ctx.wizard.next();
       },
@@ -289,14 +312,15 @@ export class TelegramBot {
     );
 
     // Сцена редактирования встречи
-    const editEventWizard = new Scenes.WizardScene(
+    const editEventWizard = new Scenes.WizardScene<BotContext>(
       'edit-event-wizard',
-      async (ctx: any) => {
+      async (ctx: BotContext) => {
         if (!isAdmin(ctx.from?.id)) {
           await ctx.reply('У вас нет прав администратора.');
           return ctx.scene.leave();
         }
-        const eventId = ctx.scene.state.eventId;
+        const state = ctx.scene.state as EventSceneState;
+        const eventId = state.eventId;
         const event = await this.dataSource.manager.findOneBy(Event, { id: eventId });
         
         if (!event) {
@@ -721,8 +745,8 @@ export class TelegramBot {
     );
 
     // Сцена главного меню
-    const mainMenuScene = new Scenes.BaseScene<Scenes.WizardContext>('main-menu');
-    mainMenuScene.enter(async (ctx) => {
+    const mainMenuScene = new Scenes.BaseScene<BotContext>('main-menu');
+    mainMenuScene.enter(async (ctx: BotContext) => {
       const buttons = [
         [Markup.button.callback('Ближайшие встречи', 'new_events'), Markup.button.callback('Мои встречи', 'my_events')],
         [Markup.button.callback('Отзывы', 'reviews'), Markup.button.callback('О клубе', 'info')],
@@ -737,7 +761,100 @@ export class TelegramBot {
       );
     });
 
-    this.stage = new Scenes.Stage<Scenes.WizardContext>([createEventWizard, editEventWizard, mainMenuScene]);
+    // Сцена для работы с реквизитами
+    const paymentDetailsScene = new Scenes.WizardScene<BotContext>(
+      'payment-details',
+      async (ctx: BotContext) => {
+        if (!isAdmin(ctx.from?.id)) {
+          await ctx.reply('У вас нет прав администратора.');
+          return ctx.scene.leave();
+        }
+
+        const state = ctx.scene.state as PaymentDetailsSceneState;
+
+        if (state.editing) {
+          const details = await this.dataSource.manager.findOneBy(PaymentDetails, { id: state.detailsId });
+          if (!details) {
+            await ctx.reply('Реквизиты не найдены.');
+            return ctx.scene.leave();
+          }
+          state.title = details.title;
+          await ctx.reply(`Текущее название: ${details.title}\nВведите новое название реквизитов:`);
+        } else {
+          state.title = '';
+          await ctx.reply('Введите название реквизитов:');
+        }
+        return ctx.wizard.next();
+      },
+      async (ctx: BotContext) => {
+        if (!ctx.message || !('text' in ctx.message)) {
+          await ctx.reply('Пожалуйста, отправьте текстовое сообщение.');
+          return;
+        }
+
+        const state = ctx.scene.state as PaymentDetailsSceneState;
+        state.title = ctx.message.text;
+
+        if (state.editing) {
+          const details = await this.dataSource.manager.findOneBy(PaymentDetails, { id: state.detailsId });
+          if (!details) {
+            await ctx.reply('Реквизиты не найдены.');
+            return ctx.scene.leave();
+          }
+          await ctx.reply(
+            `Текущее описание: ${details.description}\nВведите новое описание реквизитов:`,
+            Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_payment_details')]])
+          );
+        } else {
+          await ctx.reply(
+            'Введите описание реквизитов:',
+            Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_payment_details')]])
+          );
+        }
+        return ctx.wizard.next();
+      },
+      async (ctx: BotContext) => {
+        if (ctx.callbackQuery && 'data' in ctx.callbackQuery && ctx.callbackQuery.data === 'cancel_payment_details') {
+          await ctx.answerCbQuery();
+          await ctx.reply('Операция отменена');
+          return ctx.scene.leave();
+        }
+
+        if (!ctx.message || !('text' in ctx.message)) {
+          await ctx.reply('Пожалуйста, отправьте текстовое сообщение.');
+          return;
+        }
+
+        const state = ctx.scene.state as PaymentDetailsSceneState;
+
+        if (state.editing) {
+          const details = await this.dataSource.manager.findOneBy(PaymentDetails, { id: state.detailsId });
+          if (!details) {
+            await ctx.reply('Реквизиты не найдены.');
+            return ctx.scene.leave();
+          }
+          details.title = state.title;
+          details.description = ctx.message.text;
+          await this.dataSource.manager.save(details);
+          await ctx.reply(
+            '✅ Реквизиты успешно обновлены!',
+            Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к реквизитам', 'payment_details')]])
+          );
+        } else {
+          const paymentDetails = new PaymentDetails();
+          paymentDetails.title = state.title;
+          paymentDetails.description = ctx.message.text;
+          await this.dataSource.manager.save(paymentDetails);
+          await ctx.reply(
+            '✅ Реквизиты успешно сохранены!',
+            Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к реквизитам', 'payment_details')]])
+          );
+        }
+        return ctx.scene.leave();
+      }
+    );
+
+    this.stage = new Scenes.Stage<BotContext>([createEventWizard, editEventWizard, mainMenuScene, paymentDetailsScene]);
     
     this.bot.use(session());
     this.bot.use(this.stage.middleware());
@@ -781,12 +898,48 @@ export class TelegramBot {
     });
 
     this.bot.action('admin', async (ctx) => {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав администратора');
+        return;
+      }
+
       await ctx.answerCbQuery();
       await ctx.editMessageText(
-        'Админ-меню:',
+        'Админ-панель:',
         Markup.inlineKeyboard([
-          [Markup.button.callback('Создать встречу', 'create_event'), Markup.button.callback('Встречи', 'admin_events')],
-          [Markup.button.callback('Главное меню', 'main_menu'), Markup.button.callback('Назад', 'main_menu')]
+          [Markup.button.callback('📝 Создать встречу', 'create_event')],
+          [Markup.button.callback('📋 Список встреч', 'admin_events')],
+          [Markup.button.callback('💳 Реквизиты для оплаты', 'payment_details')],
+          [Markup.button.callback('◀️ Назад', 'main_menu')]
+        ])
+      );
+    });
+
+    // Обработчик для кнопки "Реквизиты для оплаты"
+    this.bot.action('payment_details', async (ctx: BotContext) => {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав администратора');
+        return;
+      }
+
+      const paymentDetails = await this.dataSource.manager.find(PaymentDetails);
+      
+      let message = 'Реквизиты для оплаты:\n\n';
+      
+      if (paymentDetails.length === 0) {
+        message += 'Реквизиты еще не добавлены.';
+      } else {
+        paymentDetails.forEach((details, index) => {
+          message += `${index + 1}. ${details.title}\n${details.description}\n\n`;
+        });
+      }
+
+      await ctx.editMessageText(
+        message,
+        Markup.inlineKeyboard([
+          [Markup.button.callback('➕ Добавить реквизиты', 'add_payment_details')],
+          [Markup.button.callback('✏️ Редактировать реквизиты', 'edit_payment_details')],
+          [Markup.button.callback('◀️ Назад', 'admin')]
         ])
       );
     });
@@ -1189,6 +1342,77 @@ export class TelegramBot {
         Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к списку встреч', 'new_events')]])
       );
     });
+
+    // Обработчик для кнопки "Добавить реквизиты"
+    this.bot.action('add_payment_details', async (ctx: BotContext) => {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав администратора');
+        return;
+      }
+      await ctx.answerCbQuery();
+      ctx.scene.state = {
+        title: '',
+        editing: false
+      };
+      await ctx.scene.enter('payment-details');
+    });
+
+    // Обработчик для кнопки "Редактировать реквизиты"
+    this.bot.action('edit_payment_details', async (ctx: BotContext) => {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав администратора');
+        return;
+      }
+
+      const paymentDetails = await this.dataSource.manager.find(PaymentDetails);
+      
+      if (paymentDetails.length === 0) {
+        await ctx.answerCbQuery('Нет сохраненных реквизитов');
+        return;
+      }
+
+      const buttons = paymentDetails.map(details => [
+        Markup.button.callback(
+          `${details.title}`,
+          `edit_payment_details_${details.id}`
+        )
+      ]);
+
+      buttons.push([Markup.button.callback('◀️ Назад', 'payment_details')]);
+
+      await ctx.editMessageText(
+        'Выберите реквизиты для редактирования:',
+        Markup.inlineKeyboard(buttons)
+      );
+    });
+
+    // Обработчик для выбора конкретных реквизитов для редактирования
+    this.bot.action(/^edit_payment_details_(\d+)$/, async (ctx: BotContext) => {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав администратора');
+        return;
+      }
+
+      if (!ctx.match?.[1]) {
+        await ctx.answerCbQuery('Ошибка: неверный формат данных');
+        return;
+      }
+
+      const detailsId = parseInt(ctx.match[1]);
+      const details = await this.dataSource.manager.findOneBy(PaymentDetails, { id: detailsId });
+
+      if (!details) {
+        await ctx.answerCbQuery('Реквизиты не найдены');
+        return;
+      }
+
+      ctx.scene.state = {
+        detailsId,
+        editing: true,
+        title: ''
+      };
+      await ctx.scene.enter('payment-details');
+    });
   }
 
   private async sendEventsList(ctx: any, events: Event[], title: string) {
@@ -1418,12 +1642,48 @@ export class TelegramBot {
     });
 
     this.bot.action('admin', async (ctx) => {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав администратора');
+        return;
+      }
+
       await ctx.answerCbQuery();
       await ctx.editMessageText(
-        'Админ-меню:',
+        'Админ-панель:',
         Markup.inlineKeyboard([
-          [Markup.button.callback('Создать встречу', 'create_event'), Markup.button.callback('Встречи', 'admin_events')],
-          [Markup.button.callback('Главное меню', 'main_menu'), Markup.button.callback('Назад', 'main_menu')]
+          [Markup.button.callback('📝 Создать встречу', 'create_event')],
+          [Markup.button.callback('📋 Список встреч', 'admin_events')],
+          [Markup.button.callback('💳 Реквизиты для оплаты', 'payment_details')],
+          [Markup.button.callback('◀️ Назад', 'main_menu')]
+        ])
+      );
+    });
+
+    // Обработчик для кнопки "Реквизиты для оплаты"
+    this.bot.action('payment_details', async (ctx: BotContext) => {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав администратора');
+        return;
+      }
+
+      const paymentDetails = await this.dataSource.manager.find(PaymentDetails);
+      
+      let message = 'Реквизиты для оплаты:\n\n';
+      
+      if (paymentDetails.length === 0) {
+        message += 'Реквизиты еще не добавлены.';
+      } else {
+        paymentDetails.forEach((details, index) => {
+          message += `${index + 1}. ${details.title}\n${details.description}\n\n`;
+        });
+      }
+
+      await ctx.editMessageText(
+        message,
+        Markup.inlineKeyboard([
+          [Markup.button.callback('➕ Добавить реквизиты', 'add_payment_details')],
+          [Markup.button.callback('✏️ Редактировать реквизиты', 'edit_payment_details')],
+          [Markup.button.callback('◀️ Назад', 'admin')]
         ])
       );
     });
