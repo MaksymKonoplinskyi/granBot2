@@ -9,6 +9,7 @@ import { MoreThan, LessThan } from 'typeorm';
 import { EventParticipant, ParticipationStatus } from '../entities/EventParticipant';
 import { User } from '../entities/User';
 import { PaymentDetails } from '../entities/PaymentDetails';
+import { ClubInfo } from '../entities/ClubInfo';
 
 // Настройки логирования
 interface LoggingConfig {
@@ -76,14 +77,14 @@ type BotContext = Scenes.WizardContext<WizardSessionData> & {
 export class TelegramBot {
   private readonly bot: Telegraf<BotContext>;
   private isInitialized = false;
-  private stage: Scenes.Stage<BotContext>;
+  private stage!: Scenes.Stage<BotContext>;
   private readonly dataSource: DataSource;
   private readonly loggingConfig: LoggingConfig;
 
   constructor(private readonly token: string, dataSource: DataSource, loggingConfig: LoggingConfig = { verbose: false }) {
+    this.bot = new Telegraf<BotContext>(token);
     this.dataSource = dataSource;
     this.loggingConfig = loggingConfig;
-    this.bot = new Telegraf<BotContext>(this.token);
     this.setupErrorHandling();
 
     // Устанавливаем меню команд
@@ -93,7 +94,9 @@ export class TelegramBot {
       { command: 'my_events', description: '👥 Мои встречи' },
       { command: 'help', description: '❓ Помощь' }
     ]);
+  }
 
+  public addAdminFeatures() {
     // --- WizardScene для создания встречи ---
     const createEventWizard = new Scenes.WizardScene<BotContext>(
       'create-event-wizard',
@@ -311,7 +314,7 @@ export class TelegramBot {
       }
     );
 
-    // Сцена редактирования встречи
+    // --- WizardScene для редактирования встречи ---
     const editEventWizard = new Scenes.WizardScene<BotContext>(
       'edit-event-wizard',
       async (ctx: BotContext) => {
@@ -744,24 +747,10 @@ export class TelegramBot {
       }
     );
 
-    // Сцена главного меню
+    // --- BaseScene для главного меню ---
     const mainMenuScene = new Scenes.BaseScene<BotContext>('main-menu');
-    mainMenuScene.enter(async (ctx: BotContext) => {
-      const buttons = [
-        [Markup.button.callback('Ближайшие встречи', 'new_events'), Markup.button.callback('Мои встречи', 'my_events')],
-        [Markup.button.callback('Отзывы', 'reviews'), Markup.button.callback('О клубе', 'info')],
-        [Markup.button.callback('Помощь', 'help')]
-      ];
-      if (isAdmin(ctx.from?.id)) {
-        buttons.push([Markup.button.callback('Админка', 'admin')]);
-      }
-      await ctx.reply(
-        'Главное меню:',
-        Markup.inlineKeyboard(buttons)
-      );
-    });
 
-    // Сцена для работы с реквизитами
+    // --- WizardScene для работы с реквизитами ---
     const paymentDetailsScene = new Scenes.WizardScene<BotContext>(
       'payment-details',
       async (ctx: BotContext) => {
@@ -854,10 +843,99 @@ export class TelegramBot {
       }
     );
 
-    this.stage = new Scenes.Stage<BotContext>([createEventWizard, editEventWizard, mainMenuScene, paymentDetailsScene]);
-    
+    // --- WizardScene для редактирования информации о клубе ---
+    const clubInfoScene = new Scenes.WizardScene<BotContext>(
+      'club-info',
+      async (ctx: BotContext) => {
+        if (!isAdmin(ctx.from?.id)) {
+          await ctx.reply('У вас нет прав администратора');
+          return ctx.scene.leave();
+        }
+
+        const clubInfo = await this.dataSource.manager.findOne(ClubInfo, {
+          where: {}, // Добавляем пустой объект условий
+          order: { id: 'DESC' }
+        });
+
+        if (clubInfo) {
+          await ctx.reply(
+            `Текущая информация о клубе:\n\n${clubInfo.description}\n\nВведите новую информацию:`,
+            Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_club_info')]])
+          );
+        } else {
+          await ctx.reply(
+            'Введите информацию о клубе:',
+            Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_club_info')]])
+          );
+        }
+        return ctx.wizard.next();
+      },
+      async (ctx: BotContext) => {
+        if (ctx.callbackQuery && 'data' in ctx.callbackQuery && ctx.callbackQuery.data === 'cancel_club_info') {
+          await ctx.answerCbQuery();
+          await ctx.reply('Операция отменена');
+          return ctx.scene.leave();
+        }
+
+        if (!ctx.message || !('text' in ctx.message)) {
+          await ctx.reply('Пожалуйста, отправьте текстовое сообщение.');
+          return;
+        }
+
+        const clubInfo = new ClubInfo();
+        clubInfo.description = ctx.message.text;
+        await this.dataSource.manager.save(clubInfo);
+
+        await ctx.reply(
+          '✅ Информация о клубе успешно обновлена!',
+          Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад', 'info')]])
+        );
+        return ctx.scene.leave();
+      }
+    );
+
+    // Создаем менеджер сцен после определения всех сцен
+    this.stage = new Scenes.Stage<BotContext>([
+      createEventWizard,
+      editEventWizard,
+      mainMenuScene,
+      paymentDetailsScene,
+      clubInfoScene
+    ]);
     this.bot.use(session());
     this.bot.use(this.stage.middleware());
+
+    // Обработчик для кнопки "О клубе"
+    this.bot.action('info', async (ctx) => {
+      await ctx.answerCbQuery();
+      
+      const clubInfo = await this.dataSource.manager.findOne(ClubInfo, {
+        where: {},
+        order: { id: 'DESC' }
+      });
+
+      const buttons = [[Markup.button.callback('🏠 Главное меню', 'main_menu')]];
+      
+      if (isAdmin(ctx.from?.id)) {
+        buttons.push([Markup.button.callback('✏️ Редактировать', 'edit_club_info')]);
+      }
+
+      await ctx.editMessageText(
+        clubInfo ? clubInfo.description : 'Информация еще не заполнена',
+        Markup.inlineKeyboard(buttons)
+      );
+    });
+
+    // Обработчик для кнопки "Редактировать" информацию о клубе
+    this.bot.action('edit_club_info', async (ctx) => {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав администратора');
+        return;
+      }
+
+      await ctx.answerCbQuery();
+      await ctx.scene.enter('club-info');
+    });
 
     // Добавляем обработчик для кнопки публикации
     this.bot.action(/^publish_event_(\d+)$/, async (ctx) => {
@@ -1684,18 +1762,6 @@ export class TelegramBot {
       );
     });
 
-    this.bot.action('create_event', async (ctx) => {
-      await ctx.answerCbQuery();
-      if (!isAdmin(ctx.from?.id)) {
-        return ctx.reply('У вас нет прав администратора.');
-      }
-      // Запускаем сцену создания встречи
-      // @ts-ignore
-      ctx.scene.enter('create-event-wizard');
-    });
-  }
-
-  public addAdminFeatures() {
     this.bot.action('create_event', async (ctx) => {
       await ctx.answerCbQuery();
       if (!isAdmin(ctx.from?.id)) {
