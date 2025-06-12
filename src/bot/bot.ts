@@ -1966,7 +1966,7 @@ export class TelegramBot {
     });
 
     if (events.length === 0) {
-      await ctx.reply(
+      await ctx.editMessageText(
         showPast ? 'У вас нет прошедших встреч.' : 'У вас нет предстоящих встреч.',
         Markup.inlineKeyboard([
           [Markup.button.callback(showPast ? '📅 Перейти к ближайшим встречам' : '📅 Перейти к прошедшим встречам', showPast ? 'toggle_events' : 'toggle_events_past')],
@@ -1996,7 +1996,7 @@ export class TelegramBot {
     ]);
     buttons.push([Markup.button.callback('🏠 Главное меню', 'main_menu')]);
 
-    await ctx.reply(
+    await ctx.editMessageText(
       messageText,
       Markup.inlineKeyboard(buttons)
     );
