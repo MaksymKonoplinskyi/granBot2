@@ -1241,7 +1241,7 @@ export class TelegramBot {
       }
 
       for (const event of events) {
-        const isParticipant = event.participants.some(p => p.user.telegramId === ctx.from?.id);
+        const isParticipant = event.participants.some((p: EventParticipant) => p.user.telegramId === ctx.from?.id);
         const buttons = [
           [Markup.button.callback('📋 Подробнее', `event_details_${event.id}`)]
         ];
@@ -1281,7 +1281,7 @@ export class TelegramBot {
         return;
       }
 
-      const isParticipant = event.participants.some(p => p.user.telegramId === ctx.from?.id);
+      const isParticipant = event.participants.some((p: EventParticipant) => p.user.telegramId === ctx.from?.id);
       if (isParticipant) {
         await ctx.answerCbQuery('Вы уже участвуете в этой встрече');
         return;
@@ -1401,7 +1401,7 @@ export class TelegramBot {
         return;
       }
 
-      const isParticipant = event.participants.some(p => p.user.telegramId === ctx.from?.id);
+      const isParticipant = event.participants.some((p: EventParticipant) => p.user.telegramId === ctx.from?.id);
       const buttons = [
         [Markup.button.callback('◀️ Назад к списку', 'new_events')]
       ];
@@ -1425,8 +1425,153 @@ export class TelegramBot {
       );
     });
 
+    // Обработчик для кнопки "Оплатить"
     this.bot.action(/^pay_event_(\d+)$/, async (ctx) => {
-      await ctx.answerCbQuery('Функция оплаты будет добавлена позже');
+      const eventId = parseInt(ctx.match[1]);
+      const event = await this.dataSource.manager.findOneBy(Event, { id: eventId });
+      
+      if (!event) {
+        await ctx.answerCbQuery('Встреча не найдена');
+        return;
+      }
+
+      const paymentDetails = await this.dataSource.manager.find(PaymentDetails);
+      
+      if (paymentDetails.length === 0) {
+        await ctx.answerCbQuery('Нет доступных способов оплаты');
+        return;
+      }
+
+      const buttons = paymentDetails.map(details => [
+        Markup.button.callback(
+          details.title,
+          `select_payment_method_${eventId}_${details.id}`
+        )
+      ]);
+
+      buttons.push([Markup.button.callback('◀️ Назад', `event_${eventId}`)]);
+
+      await ctx.editMessageText(
+        'Выберите способ оплаты:',
+        Markup.inlineKeyboard(buttons)
+      );
+    });
+
+    // Обработчик выбора способа оплаты
+    this.bot.action(/^select_payment_method_(\d+)_(\d+)$/, async (ctx) => {
+      const eventId = parseInt(ctx.match[1]);
+      const detailsId = parseInt(ctx.match[2]);
+      
+      const event = await this.dataSource.manager.findOneBy(Event, { id: eventId });
+      const paymentDetails = await this.dataSource.manager.findOneBy(PaymentDetails, { id: detailsId });
+      
+      if (!event || !paymentDetails) {
+        await ctx.answerCbQuery('Ошибка: данные не найдены');
+        return;
+      }
+
+      const amount = event.advancePaymentAmount || event.fullPaymentAmount;
+      
+      await ctx.editMessageText(
+        `Информация для оплаты:\n\n` +
+        `${paymentDetails.description}\n\n` +
+        `Сумма к оплате: ${amount} грн.\n\n` +
+        `После оплаты нажмите кнопку "Я оплатил"`,
+        Markup.inlineKeyboard([
+          [Markup.button.callback('✅ Я оплатил', `confirm_payment_${eventId}_${detailsId}`)],
+          [Markup.button.callback('◀️ Назад', `pay_event_${eventId}`)]
+        ])
+      );
+    });
+
+    // Обработчик подтверждения оплаты
+    this.bot.action(/^confirm_payment_(\d+)_(\d+)$/, async (ctx) => {
+      const eventId = parseInt(ctx.match[1]);
+      const detailsId = parseInt(ctx.match[2]);
+      
+      const event = await this.dataSource.manager.findOneBy(Event, { id: eventId });
+      const paymentDetails = await this.dataSource.manager.findOneBy(PaymentDetails, { id: detailsId });
+      
+      if (!event || !paymentDetails) {
+        await ctx.answerCbQuery('Ошибка: данные не найдены');
+        return;
+      }
+
+      // Обновляем статус участия
+      const participation = await this.dataSource.manager.findOne(EventParticipant, {
+        where: {
+          event: { id: eventId },
+          user: { telegramId: ctx.from.id }
+        }
+      });
+
+      if (participation) {
+        participation.status = ParticipationStatus.PAYMENT_CONFIRMED;
+        await this.dataSource.manager.save(participation);
+      }
+
+      // Отправляем сообщение пользователю
+      await ctx.editMessageText(
+        'Спасибо за оплату! Как только организатор подтвердит, что оплата пришла, мы сразу же Вас уведомим.'
+      );
+
+      // Отправляем уведомление админу
+      const adminIds = process.env.ADMIN_IDS?.split(',').map(id => parseInt(id)) || [];
+      for (const adminId of adminIds) {
+        await this.bot.telegram.sendMessage(
+          adminId,
+          `🔔 Новое уведомление об оплате!\n\n` +
+          `Пользователь ${ctx.from.first_name} (${ctx.from.username || 'без username'}) оплатил встречу "${event.title}"\n` +
+          `Способ оплаты: ${paymentDetails.title}\n` +
+          `Сумма: ${event.advancePaymentAmount || event.fullPaymentAmount} грн.`,
+          Markup.inlineKeyboard([
+            [Markup.button.callback('✅ Подтвердить оплату', `verify_payment_${eventId}_${ctx.from.id}`)]
+          ])
+        );
+      }
+    });
+
+    // Обработчик подтверждения оплаты админом
+    this.bot.action(/^verify_payment_(\d+)_(\d+)$/, async (ctx) => {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав администратора');
+        return;
+      }
+
+      const eventId = parseInt(ctx.match[1]);
+      const userId = parseInt(ctx.match[2]);
+      
+      const event = await this.dataSource.manager.findOneBy(Event, { id: eventId });
+      const participation = await this.dataSource.manager.findOne(EventParticipant, {
+        where: {
+          event: { id: eventId },
+          user: { telegramId: userId }
+        }
+      });
+      
+      if (!event || !participation) {
+        await ctx.answerCbQuery('Ошибка: данные не найдены');
+        return;
+      }
+
+      // Обновляем статус участия
+      participation.status = ParticipationStatus.PAYMENT_CONFIRMED;
+      await this.dataSource.manager.save(participation);
+
+      // Отправляем уведомление пользователю
+      await this.bot.telegram.sendMessage(
+        userId,
+        `✅ Ваша оплата за встречу "${event.title}" подтверждена!\n\n` +
+        `Ждем вас на встрече!`
+      );
+
+      // Обновляем сообщение админа
+      await ctx.editMessageText(
+        `✅ Оплата подтверждена!\n\n` +
+        `Пользователь: ${participation.user.firstName} (${participation.user.username || 'без username'})\n` +
+        `Встреча: ${event.title}\n` +
+        `Статус: Подтверждено`
+      );
     });
 
     this.bot.action('my_events', async (ctx) => {

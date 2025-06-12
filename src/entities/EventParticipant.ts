@@ -3,12 +3,12 @@ import { Event } from './Event';
 import { User } from './User';
 
 export enum ParticipationStatus {
-  PAYMENT_ON_SITE = 'payment_on_site',           // Оплата на месте
-  PENDING_PAYMENT = 'pending_payment',           // Ожидает оплаты
-  PAYMENT_CONFIRMATION = 'payment_confirmation', // Подтверждение оплаты
-  PAYMENT_CONFIRMED = 'payment_confirmed',       // Оплата подтверждена
+  PAYMENT_ON_SITE = 'payment_on_site',           // Пользователь выбрал оплату на месте
+  PENDING_PAYMENT = 'pending_payment',           // Ожидает оплаты от пользователя (пользователь еще не оплатил)
+  PAYMENT_CONFIRMATION = 'payment_confirmation', // Подтверждение оплаты (Пользователь нажал на кнопку что он оплатил и мы ожидаем подтверждения админа)
+  PAYMENT_CONFIRMED = 'payment_confirmed',       // Оплата подтверждена (Админ подтвердил оплату)
   CANCELLED_NO_PAYMENT = 'cancelled_no_payment', // Отмена без оплаты
-  PENDING_REFUND = 'pending_refund'             // Ожидание возврата средств
+  PENDING_REFUND = 'pending_refund'             // Ожидание возврата средств (Пользователь отменил участие во встрече после оплаты)
 }
 
 @Entity()

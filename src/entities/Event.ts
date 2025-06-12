@@ -6,43 +6,40 @@ export class Event {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column('varchar')
+  @Column()
   title!: string;
 
-  @Column('text', { nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   description!: string | null;
 
-  @Column('varchar', { nullable: true })
-  location!: string | null;
-
-  @Column('timestamp')
+  @Column()
   startDate!: Date;
 
-  @Column('timestamp', { nullable: true })
-  endDate!: Date | null;
+  @Column()
+  endDate!: Date;
 
-  @Column('boolean', { default: false })
+  @Column({ default: false })
   isPublished!: boolean;
 
-  @Column('boolean', { default: false })
+  @Column({ default: false })
   isCancelled!: boolean;
 
-  @Column('boolean', { default: false })
-  allowOnSitePayment!: boolean;
-
-  @Column('decimal', { nullable: true, precision: 10, scale: 2 })
-  partialPaymentAmount!: number | null;
-
-  @Column('decimal', { nullable: true })
-  advancePaymentAmount!: number | null;
-
-  @Column('timestamp', { nullable: true })
-  advancePaymentDeadline!: Date | null;
-
-  @Column('decimal', { nullable: true, precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
   fullPaymentAmount!: number | null;
 
-  @OneToMany(() => EventParticipant, participant => participant.event, { cascade: true })
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  advancePaymentAmount!: number | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  advancePaymentDeadline!: Date | null;
+
+  @Column({ default: true })
+  allowOnSitePayment!: boolean;
+
+  @Column({ type: 'varchar', nullable: true })
+  location!: string | null;
+
+  @OneToMany(() => EventParticipant, participant => participant.event)
   participants!: EventParticipant[];
 
   @CreateDateColumn()

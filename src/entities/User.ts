@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
 import { EventParticipant } from './EventParticipant';
 
 @Entity()
@@ -6,23 +6,20 @@ export class User {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ unique: true })
+  @Column()
   telegramId!: number;
 
-  @Column('varchar', { nullable: true })
-  username!: string | null;
+  @Column()
+  firstName!: string;
 
-  @Column('varchar', { nullable: true })
-  firstName!: string | null;
+  @Column({ nullable: true })
+  lastName!: string;
 
-  @Column('varchar', { nullable: true })
-  lastName!: string | null;
+  @Column({ nullable: true })
+  username!: string;
 
-  @Column('varchar', { nullable: true })
-  phoneNumber!: string | null;
-
-  @Column('varchar', { nullable: true })
-  email!: string | null;
+  @Column({ default: false })
+  isAdmin!: boolean;
 
   @OneToMany(() => EventParticipant, participant => participant.user)
   eventParticipations!: EventParticipant[];
