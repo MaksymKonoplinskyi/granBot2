@@ -1431,6 +1431,11 @@ export class TelegramBot {
       );
     });
 
+    // Обработчик команды /my_events
+    this.bot.command('my_events', async (ctx) => {
+      await this.showUserEvents(ctx, false);
+    });
+
     // Обработчик кнопки "Мои встречи"
     this.bot.action('my_events', async (ctx) => {
       await this.showUserEvents(ctx, false);
@@ -1965,28 +1970,19 @@ export class TelegramBot {
       }
     });
 
-    if (events.length === 0) {
-      await ctx.editMessageText(
-        showPast ? 'У вас нет прошедших встреч.' : 'У вас нет предстоящих встреч.',
-        Markup.inlineKeyboard([
-          [Markup.button.callback(showPast ? '📅 Перейти к ближайшим встречам' : '📅 Перейти к прошедшим встречам', showPast ? 'toggle_events' : 'toggle_events_past')],
-          [Markup.button.callback('🏠 Главное меню', 'main_menu')]
-        ])
-      );
-      return;
-    }
-
-    let messageText = showPast ? 'Ваши прошедшие встречи:\n\n' : 'Ваши предстоящие встречи:\n\n';
-    for (const event of events) {
-      const participant = event.participants.find(p => p.user.telegramId === ctx.from?.id);
-      messageText += `📅 ${event.title}\n` +
-        `Дата начала: ${formatDate(event.startDate)}\n` +
-        `Дата окончания: ${formatDate(event.endDate)}\n` +
-        `Стоимость и варианты оплаты:\n` +
-        `${event.allowOnSitePayment ? `• ${event.fullPaymentAmount} грн. в случае оплаты при встрече\n` : ''}` +
-        `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? `, не позднее ${formatDate(event.advancePaymentDeadline)}` : ''}\n` : ''}` +
-        `Статус: ${this.getParticipationStatusText(participant)}\n\n`;
-    }
+    const messageText = events.length === 0
+      ? (showPast ? 'У вас нет прошедших встреч.' : 'У вас нет предстоящих встреч.')
+      : (showPast ? 'Ваши прошедшие встречи:\n\n' : 'Ваши предстоящие встречи:\n\n') +
+        events.map(event => {
+          const participant = event.participants.find(p => p.user.telegramId === ctx.from?.id);
+          return `📅 ${event.title}\n` +
+            `Дата начала: ${formatDate(event.startDate)}\n` +
+            `Дата окончания: ${formatDate(event.endDate)}\n` +
+            `Стоимость и варианты оплаты:\n` +
+            `${event.allowOnSitePayment ? `• ${event.fullPaymentAmount} грн. в случае оплаты при встрече\n` : ''}` +
+            `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? `, не позднее ${formatDate(event.advancePaymentDeadline)}` : ''}\n` : ''}` +
+            `Статус: ${this.getParticipationStatusText(participant)}\n\n`;
+        }).join('');
 
     const buttons = events.map(event => [
       Markup.button.callback(`📋 Подробнее "${event.title}"`, `event_details_${event.id}`)
@@ -1996,9 +1992,12 @@ export class TelegramBot {
     ]);
     buttons.push([Markup.button.callback('🏠 Главное меню', 'main_menu')]);
 
-    await ctx.editMessageText(
-      messageText,
-      Markup.inlineKeyboard(buttons)
-    );
+    // Если это callback query (нажатие на кнопку), редактируем сообщение
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons));
+    } else {
+      // Если это команда, отправляем новое сообщение
+      await ctx.reply(messageText, Markup.inlineKeyboard(buttons));
+    }
   }
 }
