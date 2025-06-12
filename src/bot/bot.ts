@@ -1489,11 +1489,13 @@ export class TelegramBot {
       const eventId = parseInt(ctx.match[1]);
       const detailsId = parseInt(ctx.match[2]);
       
-      const event = await this.dataSource.manager.findOneBy(Event, { id: eventId });
-      const paymentDetails = await this.dataSource.manager.findOneBy(PaymentDetails, { id: detailsId });
-      
-      if (!event || !paymentDetails) {
-        await ctx.answerCbQuery('Ошибка: данные не найдены');
+      const event = await this.dataSource.manager.findOne(Event, {
+        where: { id: eventId },
+        relations: ['participants', 'participants.user']
+      });
+
+      if (!event) {
+        await ctx.answerCbQuery('Встреча не найдена');
         return;
       }
 
@@ -1506,29 +1508,36 @@ export class TelegramBot {
       });
 
       if (participation) {
-        participation.status = ParticipationStatus.PAYMENT_CONFIRMED;
+        participation.status = ParticipationStatus.PAYMENT_CONFIRMATION;
         await this.dataSource.manager.save(participation);
+
+        // Отправляем уведомление админам
+        for (const adminId of ADMINS) {
+          try {
+            await this.bot.telegram.sendMessage(
+              adminId,
+              `🔔 Новое уведомление об оплате!\n\n` +
+              `Пользователь ${ctx.from.first_name} (${ctx.from.username ? '@' + ctx.from.username : 'без username'}) ` +
+              `подтвердил оплату за встречу "${event.title}".\n\n` +
+              `Пожалуйста, проверьте оплату и подтвердите её.`,
+              Markup.inlineKeyboard([
+                [Markup.button.callback('✅ Оплата пришла', `payment_received_${eventId}_${ctx.from.id}`)],
+                [Markup.button.callback('⏰ Позже', `check_payment_later_${eventId}_${ctx.from.id}`)]
+              ])
+            );
+          } catch (error) {
+            this.log('Ошибка при отправке уведомления админу', { adminId, error });
+          }
+        }
       }
 
-      // Отправляем сообщение пользователю
+      await ctx.answerCbQuery('Ваша оплата ожидает подтверждения администратором');
       await ctx.editMessageText(
-        'Спасибо за оплату! Как только организатор подтвердит, что оплата пришла, мы сразу же Вас уведомим.'
+        '✅ Спасибо! Мы получили ваше подтверждение об оплате.\n\n' +
+        'Администратор проверит оплату и подтвердит ваше участие.\n' +
+        'Вы получите уведомление, когда это произойдет.',
+        Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]])
       );
-
-      // Отправляем уведомление админу
-      const adminIds = process.env.ADMIN_IDS?.split(',').map(id => parseInt(id)) || [];
-      for (const adminId of adminIds) {
-        await this.bot.telegram.sendMessage(
-          adminId,
-          `🔔 Новое уведомление об оплате!\n\n` +
-          `Пользователь ${ctx.from.first_name} (${ctx.from.username || 'без username'}) оплатил встречу "${event.title}"\n` +
-          `Способ оплаты: ${paymentDetails.title}\n` +
-          `Сумма: ${event.advancePaymentAmount || event.fullPaymentAmount} грн.`,
-          Markup.inlineKeyboard([
-            [Markup.button.callback('✅ Подтвердить оплату', `verify_payment_${eventId}_${ctx.from.id}`)]
-          ])
-        );
-      }
     });
 
     // Обработчик подтверждения оплаты админом
@@ -1720,6 +1729,89 @@ export class TelegramBot {
         editing: true,
         title: details.title
       });
+    });
+
+    // Обработчик кнопки "Оплата пришла" от админа
+    this.bot.action(/payment_received_(\d+)_(\d+)/, async (ctx) => {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав для этого действия');
+        return;
+      }
+
+      const eventId = parseInt(ctx.match[1]);
+      const userId = parseInt(ctx.match[2]);
+
+      const participation = await this.dataSource.manager.findOne(EventParticipant, {
+        where: {
+          event: { id: eventId },
+          user: { telegramId: userId }
+        },
+        relations: ['event', 'user']
+      });
+
+      if (participation) {
+        participation.status = ParticipationStatus.PAYMENT_CONFIRMED;
+        await this.dataSource.manager.save(participation);
+
+        // Уведомляем пользователя
+        try {
+          await this.bot.telegram.sendMessage(
+            userId,
+            `✅ Ваша оплата за встречу "${participation.event.title}" подтверждена!\n\n` +
+            'Ждем вас на встрече!'
+          );
+        } catch (error) {
+          this.log('Ошибка при отправке уведомления пользователю', { userId, error });
+        }
+
+        // Обновляем сообщение админа
+        await ctx.editMessageText(
+          (ctx.callbackQuery.message as any).text + '\n\n✅ Оплата подтверждена',
+          { reply_markup: { inline_keyboard: [] } }
+        );
+      }
+    });
+
+    // Обработчик кнопки "Проверить позже" от админа
+    this.bot.action(/check_payment_later_(\d+)_(\d+)/, async (ctx) => {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав для этого действия');
+        return;
+      }
+
+      const eventId = parseInt(ctx.match[1]);
+      const userId = parseInt(ctx.match[2]);
+
+      const participation = await this.dataSource.manager.findOne(EventParticipant, {
+        where: {
+          event: { id: eventId },
+          user: { telegramId: userId }
+        },
+        relations: ['event', 'user']
+      });
+
+      if (participation) {
+        // Отправляем то же сообщение через 2 минуты
+        setTimeout(async () => {
+          try {
+            await this.bot.telegram.sendMessage(
+              ctx.from.id,
+              `🔔 Напоминание о проверке оплаты!\n\n` +
+              `Пользователь ${participation.user.firstName} (${participation.user.username ? '@' + participation.user.username : 'без username'}) ` +
+              `подтвердил оплату за встречу "${participation.event.title}".\n\n` +
+              `Пожалуйста, проверьте оплату и подтвердите её.`,
+              Markup.inlineKeyboard([
+                [Markup.button.callback('✅ Оплата пришла', `payment_received_${eventId}_${userId}`)],
+                [Markup.button.callback('⏰ Позже', `check_payment_later_${eventId}_${userId}`)]
+              ])
+            );
+          } catch (error) {
+            this.log('Ошибка при отправке напоминания админу', { adminId: ctx.from.id, error });
+          }
+        }, 2 * 60 * 1000); // 2 минуты
+
+        await ctx.answerCbQuery('Напоминание будет отправлено через 2 минуты');
+      }
     });
   }
 
