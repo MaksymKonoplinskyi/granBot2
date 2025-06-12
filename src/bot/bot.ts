@@ -725,20 +725,45 @@ export class TelegramBot {
              Markup.button.callback('🏠 Главное меню', 'main_menu')]
           ];
 
-          await ctx.reply(
-            `Обновленная информация о встрече:\n\n` +
-            `Название: ${event.title}\n` +
-            `Дата начала: ${formatDate(event.startDate)}\n` +
-            `Дата окончания: ${formatDate(event.endDate)}\n` +
-            `Описание: ${event.description}\n` +
-            `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
-            `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
-            `Стоимость и варианты оплаты:\n` +
-            `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
-            `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
-            `\nВыберите поле для редактирования:`,
-            Markup.inlineKeyboard(buttons)
-          );
+          if (ctx.callbackQuery) {
+            try {
+              await ctx.editMessageText(
+                `Обновленная информация о встрече:\n\n` +
+                `Название: ${event.title}\n` +
+                `Дата начала: ${formatDate(event.startDate)}\n` +
+                `Дата окончания: ${formatDate(event.endDate)}\n` +
+                `Описание: ${event.description}\n` +
+                `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+                `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
+                `Стоимость и варианты оплаты:\n` +
+                `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+                `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+                `\nВыберите поле для редактирования:`,
+                Markup.inlineKeyboard(buttons)
+              );
+            } catch (error) {
+              if (error instanceof Error && error.message.includes('message is not modified')) {
+                // Игнорируем ошибку, если сообщение не изменилось
+                return;
+              }
+              throw error;
+            }
+          } else {
+            await ctx.reply(
+              `Обновленная информация о встрече:\n\n` +
+              `Название: ${event.title}\n` +
+              `Дата начала: ${formatDate(event.startDate)}\n` +
+              `Дата окончания: ${formatDate(event.endDate)}\n` +
+              `Описание: ${event.description}\n` +
+              `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` +
+              `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n\n` +
+              `Стоимость и варианты оплаты:\n` +
+              `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? ` (не позднее ${formatDate(event.advancePaymentDeadline)})` : ''}\n` : ''}` +
+              `${event.fullPaymentAmount ? `• ${event.fullPaymentAmount} грн. в случае оплаты${event.advancePaymentDeadline ? ` после ${formatDate(event.advancePaymentDeadline)}` : ''}${event.allowOnSitePayment ? ` или при встрече` : ''}\n` : ''}` +
+              `\nВыберите поле для редактирования:`,
+              Markup.inlineKeyboard(buttons)
+            );
+          }
           return ctx.wizard.back();
         } catch (error) {
           console.error('Ошибка при обновлении поля:', error);
@@ -1274,7 +1299,19 @@ export class TelegramBot {
 
       buttons.push([Markup.button.callback('❌ Отменить участие', `cancel_join_${event.id}`)]);
 
-      await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons));
+      if (ctx.callbackQuery) {
+        try {
+          await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons));
+        } catch (error) {
+          if (error instanceof Error && error.message.includes('message is not modified')) {
+            // Игнорируем ошибку, если сообщение не изменилось
+            return;
+          }
+          throw error;
+        }
+      } else {
+        await ctx.reply(messageText, Markup.inlineKeyboard(buttons));
+      }
     });
 
     // Обработчики для различных вариантов оплаты
@@ -1433,18 +1470,26 @@ export class TelegramBot {
 
     // Обработчик команды /my_events
     this.bot.command('my_events', async (ctx) => {
-      await this.showUserEvents(ctx, false);
+      await this.showUserEvents(ctx, false, true);
     });
 
     // Обработчик кнопки "Мои встречи"
     this.bot.action('my_events', async (ctx) => {
-      await this.showUserEvents(ctx, false);
+      await this.showUserEvents(ctx, false, true);
     });
 
     // Обработчик переключения между предстоящими и прошедшими встречами
-    this.bot.action(/^toggle_events(_past)?$/, async (ctx) => {
+    this.bot.action(/^toggle_events(_past)?_(all|my)$/, async (ctx) => {
       const isPast = ctx.match[1] === '_past';
-      await this.showUserEvents(ctx, isPast);
+      const showOnlyUserEvents = ctx.match[2] === 'my';
+      await this.showUserEvents(ctx, isPast, showOnlyUserEvents);
+    });
+
+    // Обработчик переключения между всеми встречами и встречами пользователя
+    this.bot.action(/^toggle_user_events_(past|upcoming)_(all|my)$/, async (ctx) => {
+      const isPast = ctx.match[1] === 'past';
+      const showOnlyUserEvents = ctx.match[2] === 'my';
+      await this.showUserEvents(ctx, isPast, showOnlyUserEvents);
     });
 
     this.bot.action(/^remind_later_(\d+)$/, async (ctx) => {
@@ -1569,6 +1614,16 @@ export class TelegramBot {
     // Обработчик кнопки "Ближайшие встречи" в главном меню
     this.bot.action('new_events', async (ctx) => {
       await this.showUpcomingEvents(ctx);
+    });
+
+    // Обработчик кнопки "Ближайшие встречи"
+    this.bot.action('upcoming_events', async (ctx) => {
+      await this.showUserEvents(ctx, false, false);
+    });
+
+    // Обработчик команды /upcoming_events
+    this.bot.command('upcoming_events', async (ctx) => {
+      await this.showUserEvents(ctx, false, false);
     });
   }
 
@@ -1951,7 +2006,19 @@ export class TelegramBot {
       Markup.button.callback('⬅️ Назад', isPast ? 'toggle_events_past' : 'toggle_events')
     ]);
 
-    await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons));
+    if (ctx.callbackQuery) {
+      try {
+        await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('message is not modified')) {
+          // Игнорируем ошибку, если сообщение не изменилось
+          return;
+        }
+        throw error;
+      }
+    } else {
+      await ctx.reply(messageText, Markup.inlineKeyboard(buttons));
+    }
   }
 
   private getParticipationStatusText(participant: EventParticipant | undefined): string {
@@ -1969,13 +2036,15 @@ export class TelegramBot {
     }
   }
 
-  private async showUserEvents(ctx: any, showPast: boolean) {
+  private async showUserEvents(ctx: any, showPast: boolean, showOnlyUserEvents: boolean = true) {
     const now = new Date();
     const events = await this.dataSource.manager.find(Event, {
       where: {
-        participants: {
-          user: { telegramId: ctx.from?.id }
-        },
+        ...(showOnlyUserEvents ? {
+          participants: {
+            user: { telegramId: ctx.from?.id }
+          }
+        } : {}),
         startDate: showPast ? LessThan(now) : MoreThan(now),
         isPublished: true,
         isCancelled: false
@@ -1987,8 +2056,12 @@ export class TelegramBot {
     });
 
     const messageText = events.length === 0
-      ? (showPast ? 'У вас нет прошедших встреч.' : 'У вас нет ближайших встреч.')
-      : (showPast ? 'Ваши прошедшие встречи:\n\n' : 'Ваши ближайшие встречи:\n\n') +
+      ? (showPast 
+          ? (showOnlyUserEvents ? 'У вас нет прошедших встреч.' : 'Нет прошедших встреч.')
+          : (showOnlyUserEvents ? 'У вас нет ближайших встреч.' : 'Нет ближайших встреч.'))
+      : (showPast 
+          ? (showOnlyUserEvents ? 'Ваши прошедшие встречи:\n\n' : 'Прошедшие встречи:\n\n')
+          : (showOnlyUserEvents ? 'Ваши ближайшие встречи:\n\n' : 'Ближайшие встречи:\n\n')) +
         events.map(event => {
           const participant = event.participants.find(p => p.user.telegramId === ctx.from?.id);
           return `📅 ${event.title}\n` +
@@ -2004,15 +2077,24 @@ export class TelegramBot {
       Markup.button.callback(`📋 Подробнее "${event.title}"`, `event_details_${event.id}`)
     ]);
     buttons.push([
-      Markup.button.callback(showPast ? '📅 Перейти к ближайшим встречам' : '📅 Перейти к прошедшим встречам', showPast ? 'toggle_events' : 'toggle_events_past')
+      Markup.button.callback(showPast ? '📅 Перейти к ближайшим встречам' : '📅 Перейти к прошедшим встречам', `toggle_events${showPast ? '' : '_past'}_${showOnlyUserEvents ? 'my' : 'all'}`)
+    ]);
+    buttons.push([
+      Markup.button.callback(showOnlyUserEvents ? '👥 Показать все встречи' : '👤 Показать мои встречи', `toggle_user_events_${showPast ? 'past' : 'upcoming'}_${showOnlyUserEvents ? 'all' : 'my'}`)
     ]);
     buttons.push([Markup.button.callback('🏠 Главное меню', 'main_menu')]);
 
-    // Если это callback query (нажатие на кнопку), редактируем сообщение
     if (ctx.callbackQuery) {
-      await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons));
+      try {
+        await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('message is not modified')) {
+          // Игнорируем ошибку, если сообщение не изменилось
+          return;
+        }
+        throw error;
+      }
     } else {
-      // Если это команда, отправляем новое сообщение
       await ctx.reply(messageText, Markup.inlineKeyboard(buttons));
     }
   }
