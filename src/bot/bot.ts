@@ -975,6 +975,7 @@ export class TelegramBot {
       ctx.scene.enter('edit-event-wizard', { eventId });
     });
 
+    // Обработчик для кнопки "Админ-панель"
     this.bot.action('admin', async (ctx) => {
       if (!isAdmin(ctx.from?.id)) {
         await ctx.answerCbQuery('У вас нет прав администратора');
@@ -984,9 +985,9 @@ export class TelegramBot {
       await ctx.editMessageText(
         'Админ-панель:',
         Markup.inlineKeyboard([
-          [Markup.button.callback('📋 Встречи', 'admin_events'), 
-           Markup.button.callback('💳 Реквизиты для оплаты', 'payment_details')],
-          [Markup.button.callback('➕ Создать встречу', 'create_event')],
+          [Markup.button.callback('📋 Встречи', 'admin_events'),
+           Markup.button.callback('➕ Создать встречу', 'create_event')],
+          [Markup.button.callback('💳 Реквизиты для оплаты', 'payment_details')],
           [Markup.button.callback('ℹ️ О клубе', 'info')],
           [Markup.button.callback('🏠 Главное меню', 'main_menu')]
         ])
@@ -1798,195 +1799,6 @@ export class TelegramBot {
       );
     });
 
-    this.bot.action('info', async (ctx) => {
-      await ctx.answerCbQuery();
-      await ctx.reply('Это отличный клуб');
-    });
-
-    this.bot.action('admin', async (ctx) => {
-      if (!isAdmin(ctx.from?.id)) {
-        await ctx.answerCbQuery('У вас нет прав администратора');
-        return;
-      }
-      await ctx.answerCbQuery();
-      await ctx.editMessageText(
-        'Админ-панель:',
-        Markup.inlineKeyboard([
-          [Markup.button.callback('📋 Встречи', 'admin_events'), 
-           Markup.button.callback('💳 Реквизиты для оплаты', 'payment_details')],
-          [Markup.button.callback('➕ Создать встречу', 'create_event')],
-          [Markup.button.callback('ℹ️ О клубе', 'info')],
-          [Markup.button.callback('🏠 Главное меню', 'main_menu')]
-        ])
-      );
-    });
-
-    // Добавляем обработчик для кнопки "Создать встречу"
-    this.bot.action('create_event', async (ctx) => {
-      if (!isAdmin(ctx.from?.id)) {
-        await ctx.answerCbQuery('У вас нет прав администратора');
-        return;
-      }
-      await ctx.answerCbQuery();
-      await ctx.scene.enter('create-event-wizard');
-    });
-
-    // Обработчик для кнопки "Реквизиты для оплаты"
-    this.bot.action('payment_details', async (ctx) => {
-      if (!isAdmin(ctx.from?.id)) {
-        await ctx.answerCbQuery('У вас нет прав администратора');
-        return;
-      }
-
-      const paymentDetails = await this.dataSource.manager.find(PaymentDetails);
-      
-      let message = 'Реквизиты для оплаты:\n\n';
-      
-      if (paymentDetails.length === 0) {
-        message += 'Реквизиты еще не добавлены.';
-      } else {
-        paymentDetails.forEach((details, index) => {
-          message += `${index + 1}. ${details.title}\n${details.description}\n\n`;
-        });
-      }
-
-      await ctx.editMessageText(
-        message,
-        Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Добавить реквизиты', 'add_payment_details')],
-          [Markup.button.callback('✏️ Редактировать реквизиты', 'edit_payment_details')],
-          [Markup.button.callback('◀️ Назад', 'admin')]
-        ])
-      );
-    });
-
-    // Обработчик для кнопки "Добавить реквизиты"
-    this.bot.action('add_payment_details', async (ctx) => {
-      if (!isAdmin(ctx.from?.id)) {
-        await ctx.answerCbQuery('У вас нет прав администратора');
-        return;
-      }
-      await ctx.answerCbQuery();
-      await ctx.scene.enter('payment-details', { editing: false });
-    });
-
-    // Обработчик для кнопки "Редактировать реквизиты"
-    this.bot.action('edit_payment_details', async (ctx) => {
-      if (!isAdmin(ctx.from?.id)) {
-        await ctx.answerCbQuery('У вас нет прав администратора');
-        return;
-      }
-
-      const paymentDetails = await this.dataSource.manager.find(PaymentDetails);
-      
-      if (paymentDetails.length === 0) {
-        await ctx.answerCbQuery('Нет сохраненных реквизитов');
-        return;
-      }
-
-      const buttons = paymentDetails.map(details => [
-        Markup.button.callback(
-          `${details.title}`,
-          `edit_payment_details_${details.id}`
-        ),
-        Markup.button.callback(
-          '🗑',
-          `delete_payment_details_${details.id}`
-        )
-      ]);
-
-      buttons.push([Markup.button.callback('◀️ Назад', 'payment_details')]);
-
-      await ctx.editMessageText(
-        'Выберите реквизиты для редактирования или удаления:',
-        Markup.inlineKeyboard(buttons)
-      );
-    });
-
-    // Обработчик для удаления реквизитов
-    this.bot.action(/^delete_payment_details_(\d+)$/, async (ctx) => {
-      if (!isAdmin(ctx.from?.id)) {
-        await ctx.answerCbQuery('У вас нет прав администратора');
-        return;
-      }
-
-      if (!ctx.match?.[1]) {
-        await ctx.answerCbQuery('Ошибка: неверный формат данных');
-        return;
-      }
-
-      const detailsId = parseInt(ctx.match[1]);
-      const details = await this.dataSource.manager.findOneBy(PaymentDetails, { id: detailsId });
-
-      if (!details) {
-        await ctx.answerCbQuery('Реквизиты не найдены');
-        return;
-      }
-
-      await ctx.editMessageText(
-        `Вы уверены, что хотите удалить реквизиты "${details.title}"?`,
-        Markup.inlineKeyboard([
-          [Markup.button.callback('✅ Да', `confirm_delete_payment_details_${detailsId}`)],
-          [Markup.button.callback('❌ Нет', 'edit_payment_details')]
-        ])
-      );
-    });
-
-    // Обработчик для подтверждения удаления реквизитов
-    this.bot.action(/^confirm_delete_payment_details_(\d+)$/, async (ctx) => {
-      if (!isAdmin(ctx.from?.id)) {
-        await ctx.answerCbQuery('У вас нет прав администратора');
-        return;
-      }
-
-      if (!ctx.match?.[1]) {
-        await ctx.answerCbQuery('Ошибка: неверный формат данных');
-        return;
-      }
-
-      const detailsId = parseInt(ctx.match[1]);
-      const details = await this.dataSource.manager.findOneBy(PaymentDetails, { id: detailsId });
-
-      if (!details) {
-        await ctx.answerCbQuery('Реквизиты не найдены');
-        return;
-      }
-
-      await this.dataSource.manager.remove(details);
-      await ctx.answerCbQuery('Реквизиты успешно удалены');
-
-      // Возвращаемся к списку реквизитов
-      const paymentDetails = await this.dataSource.manager.find(PaymentDetails);
-      
-      let message = 'Реквизиты для оплаты:\n\n';
-      
-      if (paymentDetails.length === 0) {
-        message += 'Реквизиты еще не добавлены.';
-      } else {
-        paymentDetails.forEach((details, index) => {
-          message += `${index + 1}. ${details.title}\n${details.description}\n\n`;
-        });
-      }
-
-      await ctx.editMessageText(
-        message,
-        Markup.inlineKeyboard([
-          [Markup.button.callback('➕ Добавить реквизиты', 'add_payment_details')],
-          [Markup.button.callback('✏️ Редактировать реквизиты', 'edit_payment_details')],
-          [Markup.button.callback('◀️ Назад', 'admin')]
-        ])
-      );
-    });
-
-    this.bot.action('create_event', async (ctx) => {
-      await ctx.answerCbQuery();
-      if (!isAdmin(ctx.from?.id)) {
-        return ctx.reply('У вас нет прав администратора.');
-      }
-      // Запускаем сцену создания встречи
-      // @ts-ignore
-      ctx.scene.enter('create-event-wizard');
-    });
   }
 
   private setupErrorHandling(): void {
