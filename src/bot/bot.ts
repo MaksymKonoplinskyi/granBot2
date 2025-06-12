@@ -1908,34 +1908,50 @@ export class TelegramBot {
     });
 
     if (!event) {
-      await ctx.answerCbQuery('Встреча не найдена');
+      await ctx.reply('Встреча не найдена.');
       return;
     }
 
-    const isParticipant = event.participants.some(p => p.user.telegramId === ctx.from?.id);
-    const buttons = [
-      [Markup.button.callback('📋 Подробнее', `event_details_${event.id}`)]
-    ];
+    const participant = event.participants.find(p => p.user.telegramId === ctx.from?.id);
+    const now = new Date();
+    const isPast = event.startDate < now;
+    let messageText = `📅 ${event.title}\n\n` +
+      `📝 Описание:\n${event.description}\n\n` +
+      `📅 Дата начала: ${formatDate(event.startDate)}\n` +
+      `📅 Дата окончания: ${formatDate(event.endDate)}\n` +
+      `📍 Место проведения: ${event.location}\n\n` +
+      `💰 Стоимость и варианты оплаты:\n` +
+      `${event.allowOnSitePayment ? `• ${event.fullPaymentAmount} грн. в случае оплаты при встрече\n` : ''}` +
+      `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? `, не позднее ${formatDate(event.advancePaymentDeadline)}` : ''}\n` : ''}\n` +
+      `👥 Количество участников: ${event.participants.length}\n\n` +
+      `${event.isCancelled ? '❌ Встреча отменена\n' : '' }\n` +
+      `👤 Ваш статус: ${this.getParticipationStatusText(participant)}\n`;
 
-    if (isParticipant) {
-      buttons.push([
-        Markup.button.callback('❌ Отменить участие', `leave_event_${event.id}`),
-        Markup.button.callback('💳 Оплатить', `pay_event_${event.id}`)
-      ]);
-    } else {
-      buttons.push([Markup.button.callback('✅ Принять участие', `join_event_${event.id}`)]);
+    const buttons = [];
+    
+    // Кнопки для участия/отмены участия
+    if (!event.isCancelled && !isPast) {
+      if (!participant) {
+        buttons.push([Markup.button.callback('✅ Принять участие', `join_event_${event.id}`)]);
+      } else if (this.getParticipationStatusText(participant) === 'Зарегистрирован') {
+        buttons.push([
+          Markup.button.callback('❌ Отменить участие', `leave_event_${event.id}`),
+          Markup.button.callback('💳 Оплатить сейчас', `pay_event_${event.id}`)
+        ]);
+      } else {
+        buttons.push([
+          Markup.button.callback('❌ Отменить участие', `leave_event_${event.id}`)
+        ]);
+      }
     }
 
-    await ctx.editMessageText(
-      `📅 ${event.title}\n` +
-      `Дата начала: ${formatDate(event.startDate)}\n` +
-      `Дата окончания: ${formatDate(event.endDate)}\n` +
-      `Стоимость и варианты оплаты:\n` +
-      `${event.allowOnSitePayment ? `• ${event.fullPaymentAmount} грн. в случае оплаты при встрече\n` : ''}` +
-      `${event.advancePaymentAmount ? `• ${event.advancePaymentAmount} грн. в случае оплаты заранее${event.advancePaymentDeadline ? `, не позднее ${formatDate(event.advancePaymentDeadline)}` : ''}\n` : ''}` +
-      `\nСтатус: ${event.isPublished ? 'Опубликована' : 'Черновик'}`,
-      Markup.inlineKeyboard(buttons)
-    );
+    // Кнопки навигации
+    buttons.push([
+      Markup.button.callback('🏠 Главное меню', 'main_menu'),
+      Markup.button.callback('⬅️ Назад', isPast ? 'toggle_events_past' : 'toggle_events')
+    ]);
+
+    await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons));
   }
 
   private getParticipationStatusText(participant: EventParticipant | undefined): string {
