@@ -1533,53 +1533,10 @@ export class TelegramBot {
 
       await ctx.answerCbQuery('Ваша оплата ожидает подтверждения администратором');
       await ctx.editMessageText(
-        '✅ Спасибо! Мы получили ваше подтверждение об оплате.\n\n' +
-        'Администратор проверит оплату и подтвердит ваше участие.\n' +
+        `✅ Спасибо, ${ctx.from.first_name}! Мы получили Ваше подтверждение об оплате.\n\n` +
+        'Макс скоро проверит оплату и подтвердит ваше участие.\n' +
         'Вы получите уведомление, когда это произойдет.',
         Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]])
-      );
-    });
-
-    // Обработчик подтверждения оплаты админом
-    this.bot.action(/^verify_payment_(\d+)_(\d+)$/, async (ctx) => {
-      if (!isAdmin(ctx.from?.id)) {
-        await ctx.answerCbQuery('У вас нет прав администратора');
-        return;
-      }
-
-      const eventId = parseInt(ctx.match[1]);
-      const userId = parseInt(ctx.match[2]);
-      
-      const event = await this.dataSource.manager.findOneBy(Event, { id: eventId });
-      const participation = await this.dataSource.manager.findOne(EventParticipant, {
-        where: {
-          event: { id: eventId },
-          user: { telegramId: userId }
-        }
-      });
-      
-      if (!event || !participation) {
-        await ctx.answerCbQuery('Ошибка: данные не найдены');
-        return;
-      }
-
-      // Обновляем статус участия
-      participation.status = ParticipationStatus.PAYMENT_CONFIRMED;
-      await this.dataSource.manager.save(participation);
-
-      // Отправляем уведомление пользователю
-      await this.bot.telegram.sendMessage(
-        userId,
-        `✅ Ваша оплата за встречу "${event.title}" подтверждена!\n\n` +
-        `Ждем вас на встрече!`
-      );
-
-      // Обновляем сообщение админа
-      await ctx.editMessageText(
-        `✅ Оплата подтверждена!\n\n` +
-        `Пользователь: ${participation.user.firstName} (${participation.user.username || 'без username'})\n` +
-        `Встреча: ${event.title}\n` +
-        `Статус: Подтверждено`
       );
     });
 
