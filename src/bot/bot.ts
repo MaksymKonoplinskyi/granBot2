@@ -74,6 +74,8 @@ type BotContext = Scenes.WizardContext<WizardSessionData> & {
   match?: RegExpMatchArray;
 };
 
+export type { BotContext };
+
 export class TelegramBot {
   private readonly bot: Telegraf<BotContext>;
   private isInitialized = false;
@@ -1848,7 +1850,7 @@ export class TelegramBot {
   }
 
   private setupErrorHandling(): void {
-    this.bot.catch((err: any, ctx: Context) => {
+    this.bot.catch((err: unknown, ctx: BotContext) => {
       console.error(`Error for ${ctx.updateType}:`, err);
       ctx.reply('Произошла ошибка при обработке запроса').catch(console.error);
     });
@@ -2033,7 +2035,7 @@ export class TelegramBot {
     }
   }
 
-  private async showUserEvents(ctx: any, showPast: boolean = false, showOnlyUserEvents: boolean = true) {
+  private async showUserEvents(ctx: BotContext, showPast: boolean = false, showOnlyUserEvents: boolean = true) {
     const now = new Date();
     const events = await this.dataSource.manager.find(Event, {
       where: {
