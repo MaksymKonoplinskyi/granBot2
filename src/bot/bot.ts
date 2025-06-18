@@ -1479,14 +1479,14 @@ export class TelegramBot {
     });
 
     // Обработчик переключения между предстоящими и прошедшими встречами
-    this.bot.action(/^toggle_events(_past)?_(all|my)$/, async (ctx) => {
+    this.bot.action(/^toggle_events(_past)?_(my|all)$/, async (ctx) => {
       const isPast = ctx.match[1] === '_past';
       const showOnlyUserEvents = ctx.match[2] === 'my';
       await this.showUserEvents(ctx, isPast, showOnlyUserEvents);
     });
 
     // Обработчик переключения между всеми встречами и встречами пользователя
-    this.bot.action(/^toggle_user_events_(past|upcoming)_(all|my)$/, async (ctx) => {
+    this.bot.action(/^toggle_user_events_(past|upcoming)_(my|all)$/, async (ctx) => {
       const isPast = ctx.match[1] === 'past';
       const showOnlyUserEvents = ctx.match[2] === 'my';
       await this.showUserEvents(ctx, isPast, showOnlyUserEvents);
@@ -1616,15 +1616,12 @@ export class TelegramBot {
       await this.showUpcomingEvents(ctx);
     });
 
-    // Обработчик кнопки "Ближайшие встречи"
-    this.bot.action('upcoming_events', async (ctx) => {
-      await this.showUserEvents(ctx, false, false);
+    // Обработчик команды /new_events
+    this.bot.command('new_events', async (ctx) => {
+      await this.showUpcomingEvents(ctx);
     });
 
-    // Обработчик команды /upcoming_events
-    this.bot.command('upcoming_events', async (ctx) => {
-      await this.showUserEvents(ctx, false, false);
-    });
+
   }
 
   private async sendEventsList(ctx: any, events: Event[], title: string) {
@@ -2036,7 +2033,7 @@ export class TelegramBot {
     }
   }
 
-  private async showUserEvents(ctx: any, showPast: boolean, showOnlyUserEvents: boolean = true) {
+  private async showUserEvents(ctx: any, showPast: boolean = false, showOnlyUserEvents: boolean = true) {
     const now = new Date();
     const events = await this.dataSource.manager.find(Event, {
       where: {
