@@ -15,7 +15,7 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-import { RefactoredTelegramBot } from './bot/refactored-bot'
+import { TelegramBot } from './bot/bot'
 import { BOT_CONFIG, DATABASE_CONFIG } from './config'
 import { Event } from './entities/Event'
 import { EventParticipant } from './entities/EventParticipant'
@@ -55,7 +55,7 @@ async function main() {
     }
 
     // Создаем экземпляр бота
-    const bot = new RefactoredTelegramBot(botConfig, AppDataSource)
+    const bot = new TelegramBot(botConfig, AppDataSource)
 
     // Инициализируем бота
     await bot.init()

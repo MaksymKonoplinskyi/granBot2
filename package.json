@@ -1,13 +1,15 @@
 {
+  "name": "telegram-bot",
+  "version": "2.0.0",
+  "description": "Telegram bot для управления встречами с рефакторенной архитектурой",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "start:legacy": "node dist/legacy-start.js",
     "prebuild": "npm install --force",
     "dev": "ts-node src/index.ts",
-    "dev:legacy": "ts-node src/legacy-start.ts",
     "dev:verbose": "set VERBOSE_LOGGING=true && ts-node src/index.ts",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "test": "echo \"Тесты будут добавлены в следующих версиях\" && exit 0"
   },
   "dependencies": {
     "@types/express": "^5.0.3",

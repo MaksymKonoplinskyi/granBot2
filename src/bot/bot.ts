@@ -16,7 +16,7 @@ import { MESSAGES, BUTTONS } from '../constants/messages'
 import { isAdmin } from '../utils/auth.utils'
 import { ADMINS } from '../config'
 
-export class RefactoredTelegramBot {
+export class TelegramBot {
   private readonly bot: Telegraf<BotContext>
   private readonly eventService: EventService
   private readonly paymentDetailsService: PaymentDetailsService
