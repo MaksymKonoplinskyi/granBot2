@@ -165,15 +165,72 @@ export class EventService {
   }
 
   private mapToEventListDto(events: Event[], userId?: number): EventListDto[] {
-    return events.map(event => ({
-      id: event.id,
-      title: event.title,
-      startDate: event.startDate,
-      endDate: event.endDate,
-      isPublished: event.isPublished,
-      isCancelled: event.isCancelled,
-      participantCount: event.participants?.length || 0,
-      userParticipationStatus: userId ? event.participants?.find(p => p.user.telegramId === userId)?.status : undefined,
-    }))
+    return events.map(event => {
+      const userParticipation = userId ? event.participants?.find(p => p.user.telegramId === userId) : undefined
+
+      return {
+        id: event.id,
+        title: event.title,
+        startDate: event.startDate,
+        endDate: event.endDate,
+        fullPaymentAmount: event.fullPaymentAmount || 0,
+        advancePaymentAmount: event.advancePaymentAmount,
+        advancePaymentDeadline: event.advancePaymentDeadline,
+        allowOnSitePayment: event.allowOnSitePayment,
+        isPublished: event.isPublished,
+        isCancelled: event.isCancelled,
+        participantCount: event.participants?.length || 0,
+        userParticipationStatus: userParticipation?.status,
+      }
+    })
+  }
+
+  // Административные методы
+  async getUpcomingEventsAdmin(): Promise<Event[]> {
+    return this.eventRepository.findUpcoming()
+  }
+
+  async getPastEventsAdmin(): Promise<Event[]> {
+    return this.eventRepository.findPast()
+  }
+
+  async getAllEventsAdmin(): Promise<Event[]> {
+    return this.eventRepository.findAll()
+  }
+
+  async getEventForEdit(id: number): Promise<Event> {
+    const event = await this.eventRepository.findWithParticipants(id)
+    if (!event) {
+      throw new Error('Event not found')
+    }
+    return event
+  }
+
+  async updateEventField(id: number, field: string, value: any): Promise<Event> {
+    const event = await this.eventRepository.findById(id)
+    if (!event) {
+      throw new Error('Event not found')
+    }
+
+    // Динамическое обновление поля
+    ;(event as any)[field] = value
+
+    return this.eventRepository.save(event)
+  }
+
+  async confirmPayment(eventId: number, userId: number): Promise<void> {
+    await this.updateParticipationStatus(eventId, userId, ParticipationStatus.PAYMENT_CONFIRMED)
+  }
+
+  async setPaymentConfirmation(eventId: number, userId: number): Promise<void> {
+    await this.updateParticipationStatus(eventId, userId, ParticipationStatus.PAYMENT_CONFIRMATION)
+  }
+
+  async validateEventForPublish(id: number): Promise<boolean> {
+    const event = await this.eventRepository.findById(id)
+    if (!event) {
+      return false
+    }
+    return this.isEventComplete(event)
   }
 }

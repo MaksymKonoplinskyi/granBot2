@@ -105,4 +105,11 @@ export class EventRepository {
   async removeParticipation(participation: EventParticipant): Promise<void> {
     await this.participantRepository.remove(participation)
   }
+
+  async findAll(): Promise<Event[]> {
+    return this.repository.find({
+      relations: ['participants', 'participants.user'],
+      order: { startDate: 'DESC' },
+    })
+  }
 }
