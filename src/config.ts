@@ -1,8 +1,5 @@
 // Конфигурация бота
-export const ADMINS = [
-  '123456789', // Замените на реальные ID администраторов
-  '987654321', // Добавьте дополнительные ID админов по необходимости
-]
+export const ADMINS = process.env.ADMINS || ['397062368']
 
 export const BOT_CONFIG = {
   TOKEN: process.env.BOT_TOKEN || '',
