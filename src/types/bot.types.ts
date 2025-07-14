@@ -27,6 +27,16 @@ export interface WizardSessionData extends Scenes.WizardSessionData {
     title?: string
     editingId?: number
   }
+  createEventState?: {
+    step: 'title' | 'start_date' | 'end_date' | 'description' | 'full_payment' | 'advance_payment'
+    title?: string
+    startDate?: Date
+    endDate?: Date
+    description?: string
+    fullPaymentAmount?: number
+    advancePaymentAmount?: number | null
+    allowOnSitePayment?: boolean
+  }
 }
 
 export type BotContext = Scenes.WizardContext<WizardSessionData> & {

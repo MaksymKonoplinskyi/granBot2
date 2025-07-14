@@ -14,6 +14,7 @@ import { PaymentDetailsController } from '../controllers/payment-details.control
 import { ClubInfoController } from '../controllers/club-info.controller'
 import { MESSAGES, BUTTONS } from '../constants/messages'
 import { isAdmin } from '../utils/auth.utils'
+import { ADMINS } from '../config'
 
 export class RefactoredTelegramBot {
   private readonly bot: Telegraf<BotContext>
@@ -92,11 +93,15 @@ export class RefactoredTelegramBot {
     // Создаем упрощенные сцены
     const { createClubInfoScene } = require('../scenes/club-info.scene')
     const { createPaymentDetailsScene } = require('../scenes/payment-details.scene')
+    const { createEventScene } = require('../scenes/create-event.scene')
+    const { createEditEventScene } = require('../scenes/edit-event.scene')
 
     const clubInfoScene = createClubInfoScene(this.clubInfoService)
     const paymentDetailsScene = createPaymentDetailsScene(this.paymentDetailsService)
+    const eventCreateScene = createEventScene(this.eventService)
+    const eventEditScene = createEditEventScene(this.eventService)
 
-    this.stage = new Scenes.Stage<BotContext>([clubInfoScene, paymentDetailsScene])
+    this.stage = new Scenes.Stage<BotContext>([clubInfoScene, paymentDetailsScene, eventCreateScene, eventEditScene])
 
     this.bot.use(session())
     this.bot.use(this.stage.middleware())
@@ -340,7 +345,6 @@ export class RefactoredTelegramBot {
       await this.eventService.setPaymentConfirmation(eventId, ctx.from!.id)
 
       // Отправляем уведомления админам
-      const ADMINS = ['123456789'] // TODO: Вынести в конфиг
       for (const adminId of ADMINS) {
         try {
           await this.bot.telegram.sendMessage(adminId, `🔔 Новое уведомление об оплате!\n\nПользователь ${ctx.from!.first_name} (${ctx.from!.username ? '@' + ctx.from!.username : 'без username'}) подтвердил оплату за встречу "${event.title}".\n\nПожалуйста, проверьте оплату и подтвердите её.`, Markup.inlineKeyboard([[Markup.button.callback('✅ Оплата пришла', `payment_received_${eventId}_${ctx.from!.id}`)], [Markup.button.callback('⏰ Позже', `check_payment_later_${eventId}_${ctx.from!.id}`)]]))

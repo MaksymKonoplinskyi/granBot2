@@ -140,7 +140,7 @@ export class AdminController {
       }
 
       await ctx.answerCbQuery()
-      await ctx.editMessageText('Создание события временно недоступно через упрощенный интерфейс.\n' + 'Используйте полную админ-панель для создания событий.', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к админ-панели', 'admin')]]))
+      await ctx.scene.enter('create-event')
     } catch (error) {
       console.error('Error in createEvent:', error)
       await ctx.answerCbQuery('Ошибка при создании события')
@@ -155,7 +155,7 @@ export class AdminController {
       }
 
       await ctx.answerCbQuery()
-      await ctx.editMessageText('Редактирование события временно недоступно через упрощенный интерфейс.\n' + 'Используйте полную админ-панель для редактирования событий.', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к событиям', 'admin_events')]]))
+      await ctx.scene.enter('edit-event', { eventId })
     } catch (error) {
       console.error('Error in editEvent:', error)
       await ctx.answerCbQuery('Ошибка при редактировании события')
