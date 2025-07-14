@@ -2,8 +2,10 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
+    "start:legacy": "node dist/legacy-start.js",
     "prebuild": "npm install --force",
     "dev": "ts-node src/index.ts",
+    "dev:legacy": "ts-node src/legacy-start.ts",
     "dev:verbose": "set VERBOSE_LOGGING=true && ts-node src/index.ts",
     "lint": "eslint . --ext .ts"
   },
@@ -14,6 +16,7 @@
     "express": "^5.1.0",
     "pg": "^8.16.0",
     "reflect-metadata": "^0.2.2",
+    "sqlite3": "^5.1.7",
     "telegraf": "^4.16.3",
     "typeorm": "^0.3.24"
   },

@@ -1,87 +1,92 @@
-import { TelegramBot } from './bot/bot';
-import dotenv from 'dotenv';
-import express from 'express';
-import { getDataSource } from './data-source';
-import { DataSource } from 'typeorm';
+import 'reflect-metadata'
+import dotenv from 'dotenv'
+import { DataSource } from 'typeorm'
 
-dotenv.config();
+// Загружаем переменные окружения из .env файла
+dotenv.config()
 
-const requiredEnvVars = ['BOT_TOKEN', 'DB_HOST', 'DB_USER', 'DB_PASS', 'DB_NAME'];
+// Проверяем обязательные переменные окружения
+const requiredEnvVars = ['BOT_TOKEN']
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
-    throw new Error(`Missing required environment variable: ${envVar}`);
+    console.error(`❌ Ошибка: Переменная окружения ${envVar} не установлена!`)
+    console.error(`Создайте файл .env на основе env.example и установите все необходимые переменные.`)
+    process.exit(1)
   }
 }
 
-// Определяем режим логирования
-const verbose = process.env.VERBOSE_LOGGING === 'true';
+import { RefactoredTelegramBot } from './bot/refactored-bot'
+import { BOT_CONFIG, DATABASE_CONFIG } from './config'
+import { Event } from './entities/Event'
+import { EventParticipant } from './entities/EventParticipant'
+import { User } from './entities/User'
+import { PaymentDetails } from './entities/PaymentDetails'
+import { ClubInfo } from './entities/ClubInfo'
 
-let bot: TelegramBot;
-let dataSource: DataSource;
+// Создаем конфигурацию базы данных
+const AppDataSource = new DataSource({
+  type: DATABASE_CONFIG.TYPE,
+  database: DATABASE_CONFIG.DATABASE,
+  synchronize: true, // Автоматически создаем таблицы
+  logging: DATABASE_CONFIG.LOGGING,
+  entities: [Event, EventParticipant, User, PaymentDetails, ClubInfo],
+  migrations: [],
+  subscribers: [],
+})
 
-// Функция для корректного завершения работы
-async function gracefulShutdown(signal: string) {
-  console.log(`\nПолучен сигнал ${signal}. Завершаем работу...`);
-  
-  if (bot) {
-    bot.stop('Получен сигнал завершения');
-  }
-  
-  if (dataSource && dataSource.isInitialized) {
-    await dataSource.destroy();
-    console.log('Соединение с базой данных закрыто');
-  }
-  
-  process.exit(0);
-}
-
-// Регистрируем обработчики сигналов
-process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
-
-(async () => {
+async function main() {
   try {
-    // Инициализируем подключение к базе данных
-    if (verbose) {
-      console.log(`DB_HOST: ${process.env.DB_HOST}`);
-      console.log(`DB_PORT: ${process.env.DB_PORT}`);
-      console.log(`DB_USER: ${process.env.DB_USER}`);
-      console.log(`DB_PASS length: ${process.env.DB_PASS?.length} (не показываем сам пароль для безопасности)`);
-      console.log(`DB_NAME: ${process.env.DB_NAME}`);
+    // Инициализируем базу данных
+    await AppDataSource.initialize()
+    console.log('✅ Подключение к базе данных установлено')
+
+    // Проверяем, что таблицы созданы
+    const queryRunner = AppDataSource.createQueryRunner()
+    const tables = await queryRunner.getTables()
+    console.log('📊 Созданные таблицы:', tables.map(t => t.name).join(', '))
+    await queryRunner.release()
+
+    // Создаем конфигурацию бота
+    const botConfig = {
+      token: BOT_CONFIG.TOKEN,
+      verbose: BOT_CONFIG.VERBOSE,
+      webhookUrl: BOT_CONFIG.WEBHOOK_URL,
+      port: BOT_CONFIG.PORT,
     }
 
-    dataSource = getDataSource(verbose);
-    await dataSource.initialize();
-    console.log('Data Source has been initialized!');
+    // Создаем экземпляр бота
+    const bot = new RefactoredTelegramBot(botConfig, AppDataSource)
 
-    bot = new TelegramBot(process.env.BOT_TOKEN!, dataSource, { verbose });
-    bot.init([]);
-    bot.addAdminFeatures()
-    bot.addStartMenu();
+    // Инициализируем бота
+    await bot.init()
 
-    if (process.env.NODE_ENV === 'production') {
-      if (!process.env.RENDER_EXTERNAL_URL) {
-        throw new Error('RENDER_EXTERNAL_URL is required in production');
-      }
-      const webhookUrl = `${process.env.RENDER_EXTERNAL_URL}/bot`;
-      const port = Number(process.env.PORT || 3000);
-
-      const app = express();
-      app.use(bot.getWebhookCallback('/bot'));
-
-      await bot.setWebhook(webhookUrl);
-
-      app.listen(port, () => {
-        console.log(`Server is running on port ${port}`);
-      });
+    // Запускаем бота
+    if (BOT_CONFIG.WEBHOOK_URL) {
+      await bot.launchWebhook(BOT_CONFIG.WEBHOOK_URL, BOT_CONFIG.PORT)
     } else {
-      console.log('Starting in polling mode');
-      await bot.launchPolling();
+      await bot.launchPolling()
     }
-    console.log('Bot started successfully');
-  } catch (error) {
-    console.error('Failed to start bot:', error);
-    process.exit(1);
-  }
-})();
 
+    console.log('✅ Бот запущен успешно!')
+
+    // Graceful shutdown
+    process.on('SIGINT', () => {
+      console.log('\n🛑 Получен сигнал SIGINT, завершаем работу...')
+      bot.stop('SIGINT')
+      AppDataSource.destroy()
+      process.exit(0)
+    })
+
+    process.on('SIGTERM', () => {
+      console.log('\n🛑 Получен сигнал SIGTERM, завершаем работу...')
+      bot.stop('SIGTERM')
+      AppDataSource.destroy()
+      process.exit(0)
+    })
+  } catch (error) {
+    console.error('❌ Ошибка при запуске бота:', error)
+    process.exit(1)
+  }
+}
+
+main().catch(console.error)

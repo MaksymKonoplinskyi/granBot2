@@ -1,32 +1,32 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { EventParticipant } from './EventParticipant';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm'
+import { EventParticipant } from './EventParticipant'
 
 @Entity()
 export class User {
   @PrimaryGeneratedColumn()
-  id!: number;
+  id!: number
 
-  @Column()
-  telegramId!: number;
+  @Column('integer')
+  telegramId!: number
 
-  @Column()
-  firstName!: string;
+  @Column({ type: 'text', nullable: true })
+  firstName!: string | null
 
-  @Column({ nullable: true })
-  lastName!: string;
+  @Column({ type: 'text', nullable: true })
+  lastName!: string | null
 
-  @Column({ nullable: true })
-  username!: string;
+  @Column({ type: 'text', nullable: true })
+  username!: string | null
 
-  @Column({ default: false })
-  isAdmin!: boolean;
+  @Column({ type: 'boolean', default: false })
+  isAdmin!: boolean
 
   @OneToMany(() => EventParticipant, participant => participant.user)
-  eventParticipations!: EventParticipant[];
+  eventParticipations!: EventParticipant[]
 
   @CreateDateColumn()
-  createdAt!: Date;
+  createdAt!: Date
 
   @UpdateDateColumn()
-  updatedAt!: Date;
-} 
+  updatedAt!: Date
+}

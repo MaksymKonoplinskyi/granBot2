@@ -1,50 +1,50 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
-import { EventParticipant } from './EventParticipant';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm'
+import { EventParticipant } from './EventParticipant'
 
 @Entity()
 export class Event {
   @PrimaryGeneratedColumn()
-  id!: number;
+  id!: number
 
-  @Column()
-  title!: string;
+  @Column('text')
+  title!: string
 
-  @Column({ type: 'varchar', nullable: true })
-  description!: string | null;
+  @Column({ type: 'text', nullable: true })
+  description!: string | null
 
-  @Column()
-  startDate!: Date;
+  @Column('datetime')
+  startDate!: Date
 
-  @Column()
-  endDate!: Date;
+  @Column('datetime')
+  endDate!: Date
 
-  @Column({ default: false })
-  isPublished!: boolean;
+  @Column({ type: 'boolean', default: false })
+  isPublished!: boolean
 
-  @Column({ default: false })
-  isCancelled!: boolean;
+  @Column({ type: 'boolean', default: false })
+  isCancelled!: boolean
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
-  fullPaymentAmount!: number | null;
+  @Column({ type: 'real', nullable: true })
+  fullPaymentAmount!: number | null
 
-  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
-  advancePaymentAmount!: number | null;
+  @Column({ type: 'real', nullable: true })
+  advancePaymentAmount!: number | null
 
-  @Column({ type: 'timestamp', nullable: true })
-  advancePaymentDeadline!: Date | null;
+  @Column({ type: 'datetime', nullable: true })
+  advancePaymentDeadline!: Date | null
 
-  @Column({ default: true })
-  allowOnSitePayment!: boolean;
+  @Column({ type: 'boolean', default: true })
+  allowOnSitePayment!: boolean
 
-  @Column({ type: 'varchar', nullable: true })
-  location!: string | null;
+  @Column({ type: 'text', nullable: true })
+  location!: string | null
 
   @OneToMany(() => EventParticipant, participant => participant.event)
-  participants!: EventParticipant[];
+  participants!: EventParticipant[]
 
   @CreateDateColumn()
-  createdAt!: Date;
+  createdAt!: Date
 
   @UpdateDateColumn()
-  updatedAt!: Date;
+  updatedAt!: Date
 }

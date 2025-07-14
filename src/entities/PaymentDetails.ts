@@ -1,13 +1,13 @@
-import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column } from 'typeorm'
 
 @Entity()
 export class PaymentDetails {
   @PrimaryGeneratedColumn()
-  id!: number;
-
-  @Column()
-  title!: string;
+  id!: number
 
   @Column('text')
-  description!: string;
-} 
+  title!: string
+
+  @Column('text')
+  description!: string
+}
