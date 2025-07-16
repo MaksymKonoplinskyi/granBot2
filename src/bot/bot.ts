@@ -75,14 +75,7 @@ export class TelegramBot {
   }
 
   private setupCommands(): void {
-    // Устанавливаем меню команд
-    this.bot.telegram.setMyCommands([
-      { command: 'start', description: '🏠 Главное меню' },
-      { command: 'new_events', description: '📅 Ближайшие встречи' },
-      { command: 'my_events', description: '👥 Мои встречи' },
-      { command: 'myid', description: '🆔 Мой Telegram ID' },
-      { command: 'help', description: '❓ Помощь' },
-    ])
+    // Команды будут установлены после запуска бота в методе init()
 
     // Команда старт
     this.bot.start(ctx => {
@@ -306,6 +299,24 @@ export class TelegramBot {
   public async init(): Promise<void> {
     if (this.isInitialized) {
       throw new Error('Bot already initialized')
+    }
+
+    // Устанавливаем команды бота после инициализации
+    try {
+      // Сначала удаляем все команды
+      await this.bot.telegram.deleteMyCommands()
+
+      // Затем устанавливаем новые команды
+      await this.bot.telegram.setMyCommands([
+        { command: 'start', description: '🏠 Главное меню' },
+        { command: 'new_events', description: '📅 Ближайшие встречи' },
+        { command: 'my_events', description: '👥 Мои встречи' },
+        { command: 'myid', description: '🆔 Мой Telegram ID' },
+        { command: 'help', description: '❓ Помощь' },
+      ])
+      console.log('✅ Команды бота обновлены')
+    } catch (error) {
+      console.error('❌ Ошибка установки команд:', error)
     }
 
     this.isInitialized = true
