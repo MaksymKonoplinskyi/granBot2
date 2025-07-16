@@ -159,7 +159,7 @@ export class TelegramBot {
       return this.eventController.leaveEvent(ctx, eventId)
     })
 
-    this.bot.action(/^payment_(\w+)_(\d+)$/, ctx => {
+    this.bot.action(/^payment_(onsite|advance|full)_(\d+)$/, ctx => {
       const paymentType = ctx.match[1]
       const eventId = parseInt(ctx.match[2])
       return this.eventController.joinEvent(ctx, eventId, paymentType)
