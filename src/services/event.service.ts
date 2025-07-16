@@ -92,13 +92,14 @@ export class EventService {
     return this.mapToEventListDto(events, userId)
   }
 
-  async joinEvent(eventId: number, userId: number, status: ParticipationStatus): Promise<void> {
+  async joinEvent(eventId: number, userId: number, status: ParticipationStatus, userData?: { username?: string; firstName?: string; lastName?: string }): Promise<void> {
     const event = await this.eventRepository.findById(eventId)
     if (!event) {
       throw new Error('Event not found')
     }
 
-    const user = await this.userRepository.findByTelegramId(userId)
+    // Автоматически создаем пользователя, если его нет
+    const user = await this.userRepository.findOrCreateByTelegramId(userId, userData?.username, userData?.firstName, userData?.lastName)
     if (!user) {
       throw new Error('User not found')
     }

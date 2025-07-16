@@ -49,7 +49,12 @@ export class EventController {
   async joinEvent(ctx: BotContext, eventId: number, paymentType: string): Promise<void> {
     try {
       const status = this.getParticipationStatus(paymentType)
-      await this.eventService.joinEvent(eventId, ctx.from!.id, status)
+      const userData = {
+        username: ctx.from!.username,
+        firstName: ctx.from!.first_name,
+        lastName: ctx.from!.last_name,
+      }
+      await this.eventService.joinEvent(eventId, ctx.from!.id, status, userData)
 
       await ctx.answerCbQuery(MESSAGES.SUCCESS_JOINED_EVENT)
       await this.showEventDetails(ctx, eventId)

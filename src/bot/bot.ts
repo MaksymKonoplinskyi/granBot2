@@ -61,6 +61,19 @@ export class TelegramBot {
     })
   }
 
+  private createUserMiddleware() {
+    return async (ctx: BotContext, next: () => Promise<void>) => {
+      if (ctx.from?.id) {
+        try {
+          await this.userRepository.findOrCreateByTelegramId(ctx.from.id, ctx.from.username, ctx.from.first_name, ctx.from.last_name)
+        } catch (error) {
+          console.error('Error creating/finding user:', error)
+        }
+      }
+      return next()
+    }
+  }
+
   private setupCommands(): void {
     // Устанавливаем меню команд
     this.bot.telegram.setMyCommands([
@@ -104,6 +117,7 @@ export class TelegramBot {
     this.stage = new Scenes.Stage<BotContext>([clubInfoScene, paymentDetailsScene, eventCreateScene, eventEditScene])
 
     this.bot.use(session())
+    this.bot.use(this.createUserMiddleware())
     this.bot.use(this.stage.middleware())
   }
 
@@ -369,7 +383,7 @@ export class TelegramBot {
 
     try {
       const event = await this.eventService.getEventById(eventId)
-      const user = await this.userRepository.findByTelegramId(userId)
+      const user = await this.userRepository.findOrCreateByTelegramId(userId)
 
       if (!event || !user) {
         await ctx.answerCbQuery(MESSAGES.ERROR_GENERAL)

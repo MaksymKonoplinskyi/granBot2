@@ -58,7 +58,7 @@ export const createEventScene = (eventService: EventService) => {
         case 'title':
           state.title = ctx.message.text
           state.step = 'start_date'
-          await ctx.reply(`Название: ${state.title}\n\nШаг 2/6: Введите дату и время начала встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 25.12.2024, 19:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\n\nШаг 2/6: Введите дату и время начала встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 25.07.2025, 11:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'start_date':
@@ -69,7 +69,7 @@ export const createEventScene = (eventService: EventService) => {
           }
           state.startDate = startDate
           state.step = 'end_date'
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate)}\n\nШаг 3/6: Введите дату и время окончания встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 25.12.2024, 22:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate)}\n\nШаг 3/6: Введите дату и время окончания встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 26.07.2025, 22:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'end_date':

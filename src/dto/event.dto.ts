@@ -1,10 +1,15 @@
 import { ParticipationStatus } from '../entities/EventParticipant'
 
-export class CreateEventDto {
+// Базовый класс с общими полями события
+export class BaseEventDto {
   title!: string
-  description!: string | null
   startDate!: Date
   endDate!: Date
+}
+
+// Расширенный базовый класс для создания/обновления события
+export class EventDataDto extends BaseEventDto {
+  description!: string | null
   location?: string | null
   allowOnSitePayment!: boolean
   fullPaymentAmount!: number | null
@@ -12,7 +17,11 @@ export class CreateEventDto {
   advancePaymentDeadline?: Date | null
 }
 
-export class UpdateEventDto {
+// DTO для создания события
+export class CreateEventDto extends EventDataDto {}
+
+// DTO для обновления события (все поля опциональные)
+export class UpdateEventDto implements Partial<EventDataDto> {
   title?: string
   description?: string | null
   startDate?: Date
@@ -26,33 +35,27 @@ export class UpdateEventDto {
   isCancelled?: boolean
 }
 
-export class EventListDto {
+// Базовый класс для событий с ID и статусом
+export class EventWithIdDto extends BaseEventDto {
   id!: number
-  title!: string
-  startDate!: Date
-  endDate!: Date
   isPublished!: boolean
   isCancelled!: boolean
   participantCount!: number
   userParticipationStatus?: ParticipationStatus
 }
 
-export class EventDetailsDto {
-  id!: number
-  title!: string
+// DTO для списка событий
+export class EventListDto extends EventWithIdDto {}
+
+// DTO для детальной информации о событии
+export class EventDetailsDto extends EventWithIdDto {
   description!: string | null
-  startDate!: Date
-  endDate!: Date
   location?: string | null
   allowOnSitePayment!: boolean
   fullPaymentAmount!: number | null
   advancePaymentAmount?: number | null
   advancePaymentDeadline?: Date | null
-  isPublished!: boolean
-  isCancelled!: boolean
-  participantCount!: number
   participants!: EventParticipantDto[]
-  userParticipationStatus?: ParticipationStatus
 }
 
 export class EventParticipantDto {
