@@ -1,5 +1,6 @@
 // Конфигурация бота
-export const ADMINS = process.env.ADMINS || ['397062368']
+export const ADMINS = process.env.ADMINS ? process.env.ADMINS.split(',').map(id => id.trim()) : ['397062368']
+export const PAYMENT_ADMIN_ID = process.env.PAYMENT_ADMIN_ID || ADMINS[0]
 
 export const BOT_CONFIG = {
   TOKEN: process.env.BOT_TOKEN || '',

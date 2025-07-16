@@ -14,7 +14,7 @@ import { PaymentDetailsController } from '../controllers/payment-details.control
 import { ClubInfoController } from '../controllers/club-info.controller'
 import { MESSAGES, BUTTONS } from '../constants/messages'
 import { isAdmin } from '../utils/auth.utils'
-import { ADMINS } from '../config'
+import { ADMINS, PAYMENT_ADMIN_ID } from '../config'
 
 export class TelegramBot {
   private readonly bot: Telegraf<BotContext>
@@ -80,6 +80,7 @@ export class TelegramBot {
       { command: 'start', description: '🏠 Главное меню' },
       { command: 'new_events', description: '📅 Ближайшие встречи' },
       { command: 'my_events', description: '👥 Мои встречи' },
+      { command: 'myid', description: '🆔 Мой Telegram ID' },
       { command: 'help', description: '❓ Помощь' },
     ])
 
@@ -97,6 +98,11 @@ export class TelegramBot {
     // Команды для событий
     this.bot.command('new_events', ctx => this.eventController.showUpcomingEvents(ctx))
     this.bot.command('my_events', ctx => this.eventController.showUserEvents(ctx))
+
+    // Команда для получения Telegram ID
+    this.bot.command('myid', ctx => {
+      ctx.reply(`Ваш Telegram ID: \`${ctx.from!.id}\``, { parse_mode: 'Markdown' })
+    })
 
     // Команда помощи
     this.bot.command('help', ctx => ctx.reply(MESSAGES.HELP_TEXT))
@@ -358,13 +364,11 @@ export class TelegramBot {
       // Устанавливаем статус ожидания подтверждения оплаты
       await this.eventService.setPaymentConfirmation(eventId, ctx.from!.id)
 
-      // Отправляем уведомления админам
-      for (const adminId of ADMINS) {
-        try {
-          await this.bot.telegram.sendMessage(adminId, `🔔 Новое уведомление об оплате!\n\nПользователь ${ctx.from!.first_name} (${ctx.from!.username ? '@' + ctx.from!.username : 'без username'}) подтвердил оплату за встречу "${event.title}".\n\nПожалуйста, проверьте оплату и подтвердите её.`, Markup.inlineKeyboard([[Markup.button.callback('✅ Оплата пришла', `payment_received_${eventId}_${ctx.from!.id}`)], [Markup.button.callback('⏰ Позже', `check_payment_later_${eventId}_${ctx.from!.id}`)]]))
-        } catch (error) {
-          console.error('Error sending notification to admin:', error)
-        }
+      // Отправляем уведомление админу по оплатам
+      try {
+        await this.bot.telegram.sendMessage(PAYMENT_ADMIN_ID, `🔔 Новое уведомление об оплате!\n\nПользователь ${ctx.from!.first_name} (${ctx.from!.username ? '@' + ctx.from!.username : 'без username'}) подтвердил оплату за встречу "${event.title}".\n\nПожалуйста, проверьте оплату и подтвердите её.`, Markup.inlineKeyboard([[Markup.button.callback('✅ Оплата пришла', `payment_received_${eventId}_${ctx.from!.id}`)], [Markup.button.callback('⏰ Позже', `check_payment_later_${eventId}_${ctx.from!.id}`)]]))
+      } catch (error) {
+        console.error('Error sending notification to payment admin:', error)
       }
 
       await ctx.answerCbQuery('Ваша оплата ожидает подтверждения администратором')
@@ -393,9 +397,9 @@ export class TelegramBot {
       // Отправляем то же сообщение через 2 минуты
       setTimeout(async () => {
         try {
-          await this.bot.telegram.sendMessage(ctx.from!.id, `🔔 Напоминание о проверке оплаты!\n\nПользователь ${user.firstName} (${user.username ? '@' + user.username : 'без username'}) подтвердил оплату за встречу "${event.title}".\n\nПожалуйста, проверьте оплату и подтвердите её.`, Markup.inlineKeyboard([[Markup.button.callback('✅ Оплата пришла', `payment_received_${eventId}_${userId}`)], [Markup.button.callback('⏰ Позже', `check_payment_later_${eventId}_${userId}`)]]))
+          await this.bot.telegram.sendMessage(PAYMENT_ADMIN_ID, `🔔 Напоминание о проверке оплаты!\n\nПользователь ${user.firstName} (${user.username ? '@' + user.username : 'без username'}) подтвердил оплату за встречу "${event.title}".\n\nПожалуйста, проверьте оплату и подтвердите её.`, Markup.inlineKeyboard([[Markup.button.callback('✅ Оплата пришла', `payment_received_${eventId}_${userId}`)], [Markup.button.callback('⏰ Позже', `check_payment_later_${eventId}_${userId}`)]]))
         } catch (error) {
-          console.error('Error sending reminder to admin:', error)
+          console.error('Error sending reminder to payment admin:', error)
         }
       }, 2 * 60 * 1000) // 2 минуты
 
