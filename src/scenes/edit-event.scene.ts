@@ -8,7 +8,7 @@ import { showEventsManagementMenu } from '../utils/admin-menus'
 
 interface EditEventSceneState {
   eventId: number
-  editingField?: 'title' | 'start_date' | 'end_date' | 'description' | 'full_payment' | 'advance_payment' | 'image'
+  editingField?: 'title' | 'start_date' | 'end_date' | 'description' | 'full_payment' | 'advance_payment' | 'image' | 'scheduled_publish'
 }
 
 // Вспомогательная функция для парсинга даты в формате DD.MM.YYYY, HH:mm
@@ -160,6 +160,32 @@ export const createEditEventScene = (eventService: EventService) => {
             updateData.advancePaymentDeadline = null
           }
           break
+
+        case 'scheduled_publish':
+          const scheduledDate = parseDateTime(ctx.message.text)
+          if (!scheduledDate) {
+            await ctx.reply('Неверный формат даты. Пожалуйста, введите в формате ДД.ММ.ГГГГ, ЧЧ:ММ')
+            return
+          }
+
+          const now = new Date()
+          if (scheduledDate <= now) {
+            await ctx.reply('Дата публикации должна быть в будущем. Попробуйте еще раз.')
+            return
+          }
+
+          try {
+            await eventService.scheduleEventPublish(state.eventId, scheduledDate)
+            await ctx.reply(`✅ Отложенная публикация настроена на ${DateFormatter.formatDate(scheduledDate)}!`)
+          } catch (error) {
+            console.error('Error scheduling publish:', error)
+            if (error instanceof Error && error.message === 'Event is already published') {
+              await ctx.reply('❌ Встреча уже опубликована. Нельзя настроить отложенную публикацию.')
+            } else {
+              await ctx.reply('❌ Ошибка при настройке отложенной публикации.')
+            }
+          }
+          break
       }
 
       await eventService.updateEvent(state.eventId, updateData)
@@ -228,6 +254,18 @@ export const createEditEventScene = (eventService: EventService) => {
 
         await ctx.reply(`${imageStatus}\n\nВыберите действие:`, Markup.inlineKeyboard(buttons))
         break
+
+      case 'scheduled_publish':
+        const currentScheduled = event.scheduledPublishDate ? `⏰ Запланировано на: ${DateFormatter.formatDate(event.scheduledPublishDate)}` : '❌ Отложенная публикация не задана'
+
+        const scheduleButtons = [[Markup.button.callback('📅 Задать дату и время', 'set_schedule_time')], [Markup.button.callback('❌ Отмена', 'cancel_edit')]]
+
+        if (event.scheduledPublishDate) {
+          scheduleButtons.splice(1, 0, [Markup.button.callback('🗑 Отменить отложенную публикацию', 'cancel_scheduled_publish')])
+        }
+
+        await ctx.reply(`${currentScheduled}\n\nВыберите действие:`, Markup.inlineKeyboard(scheduleButtons))
+        break
     }
   })
 
@@ -256,6 +294,29 @@ export const createEditEventScene = (eventService: EventService) => {
     }
 
     await showEventEditMenu(ctx, eventService, state.eventId)
+  })
+
+  scene.action('set_schedule_time', async ctx => {
+    await ctx.answerCbQuery()
+    await ctx.editMessageText(`📅 Введите дату и время для отложенной публикации в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: ${DateFormatter.generateDateTimeExample()}`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_edit')]]))
+  })
+
+  scene.action('cancel_scheduled_publish', async ctx => {
+    await ctx.answerCbQuery()
+
+    try {
+      const state = (ctx.session as any)?.editEventState as EditEventSceneState
+      await eventService.cancelScheduledPublish(state.eventId)
+
+      state.editingField = undefined
+      await ctx.editMessageText('🗑 Отложенная публикация отменена!')
+      setTimeout(() => {
+        showEventEditMenu(ctx, eventService, state.eventId)
+      }, 1000)
+    } catch (error) {
+      console.error('Error canceling scheduled publish:', error)
+      await ctx.reply('Ошибка при отмене отложенной публикации')
+    }
   })
 
   scene.action('upload_new_image', async ctx => {
@@ -312,9 +373,21 @@ async function showEventEditMenu(ctx: BotContext, eventService: EventService, ev
     }
 
     const imageStatus = event.imageFileId ? '🖼 Загружено' : '📷 Отсутствует'
-    const eventText = `📝 Редактирование встречи\n\n` + `📅 Название: ${event.title}\n` + `🕒 Начало: ${DateFormatter.formatDate(event.startDate)}\n` + `🕕 Окончание: ${DateFormatter.formatDate(event.endDate)}\n` + `📄 Описание: ${event.description}\n` + `🖼 Изображение: ${imageStatus}\n` + `💰 Стоимость: ${event.fullPaymentAmount} грн\n` + `💳 Предоплата: ${event.advancePaymentAmount ? `${event.advancePaymentAmount} грн` : 'Не установлена'}\n` + `📊 Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n\n` + `Выберите поле для редактирования:`
+    const scheduledStatus = event.scheduledPublishDate ? `⏰ ${DateFormatter.formatDate(event.scheduledPublishDate)}` : '❌ Не задана'
 
-    const buttons = [[Markup.button.callback('✏️ Название', 'edit_field_title')], [Markup.button.callback('🕒 Дата начала', 'edit_field_start_date')], [Markup.button.callback('🕕 Дата окончания', 'edit_field_end_date')], [Markup.button.callback('📄 Описание', 'edit_field_description')], [Markup.button.callback('🖼 Изображение', 'edit_field_image')], [Markup.button.callback('💰 Стоимость', 'edit_field_full_payment')], [Markup.button.callback('💳 Предоплата', 'edit_field_advance_payment')], [Markup.button.callback(event.isPublished ? '📝 Снять с публикации' : '✅ Опубликовать', 'toggle_publish')], [Markup.button.callback('◀️ К списку встреч', 'back_to_events')]]
+    const eventText = `📝 Редактирование встречи\n\n` + `📅 Название: ${event.title}\n` + `🕒 Начало: ${DateFormatter.formatDate(event.startDate)}\n` + `🕕 Окончание: ${DateFormatter.formatDate(event.endDate)}\n` + `📄 Описание: ${event.description}\n` + `🖼 Изображение: ${imageStatus}\n` + `💰 Стоимость: ${event.fullPaymentAmount} грн\n` + `💳 Предоплата: ${event.advancePaymentAmount ? `${event.advancePaymentAmount} грн` : 'Не установлена'}\n` + `📊 Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` + `⏰ Отложенная публикация: ${scheduledStatus}\n\n` + `Выберите поле для редактирования:`
+
+    const buttons = [[Markup.button.callback('✏️ Название', 'edit_field_title')], [Markup.button.callback('🕒 Дата начала', 'edit_field_start_date')], [Markup.button.callback('🕕 Дата окончания', 'edit_field_end_date')], [Markup.button.callback('📄 Описание', 'edit_field_description')], [Markup.button.callback('🖼 Изображение', 'edit_field_image')], [Markup.button.callback('💰 Стоимость', 'edit_field_full_payment')], [Markup.button.callback('💳 Предоплата', 'edit_field_advance_payment')]]
+
+    // Добавляем кнопки публикации только если встреча не опубликована
+    if (!event.isPublished) {
+      buttons.push([Markup.button.callback('⏰ Отложенная публикация', 'edit_field_scheduled_publish')])
+      buttons.push([Markup.button.callback('✅ Опубликовать сейчас', 'toggle_publish')])
+    } else {
+      buttons.push([Markup.button.callback('📝 Снять с публикации', 'toggle_publish')])
+    }
+
+    buttons.push([Markup.button.callback('◀️ К списку встреч', 'back_to_events')])
 
     // Если есть изображение, показываем его
     if (event.imageFileId) {

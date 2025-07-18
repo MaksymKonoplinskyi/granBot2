@@ -162,4 +162,24 @@ export class AdminController {
       await ctx.answerCbQuery('Ошибка при редактировании события')
     }
   }
+
+  async schedulePublish(ctx: BotContext, eventId: number): Promise<void> {
+    try {
+      if (!isAdmin(ctx.from?.id)) {
+        await ctx.answerCbQuery('У вас нет прав администратора')
+        return
+      }
+
+      await ctx.answerCbQuery()
+      await ctx.editMessageText(`📅 Введите дату и время для отложенной публикации в формате ДД.ММ.ГГГГ, ЧЧ:ММ\n\nПример: ${DateFormatter.generateDateTimeExample()}`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', `edit_event_${eventId}`)]]))
+
+      // Устанавливаем состояние для обработки ввода даты
+      // Это будет обработано в отдельном middleware
+      ctx.session = ctx.session || {}
+      ;(ctx.session as any).awaitingScheduleDate = eventId
+    } catch (error) {
+      console.error('Error in schedulePublish:', error)
+      await ctx.answerCbQuery('Ошибка при настройке отложенной публикации')
+    }
+  }
 }

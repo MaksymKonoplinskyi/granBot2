@@ -74,6 +74,58 @@ export class TelegramBot {
     }
   }
 
+  private createSchedulePublishMiddleware() {
+    return async (ctx: BotContext, next: () => Promise<void>) => {
+      const session = ctx.session as any
+      if (session?.awaitingScheduleDate && ctx.message && 'text' in ctx.message) {
+        const eventId = session.awaitingScheduleDate
+        delete session.awaitingScheduleDate
+
+        try {
+          const scheduledDate = this.parseDateTime(ctx.message.text)
+          if (!scheduledDate) {
+            await ctx.reply('❌ Неверный формат даты. Пожалуйста, введите в формате ДД.ММ.ГГГГ, ЧЧ:ММ')
+            return
+          }
+
+          const now = new Date()
+          if (scheduledDate <= now) {
+            await ctx.reply('❌ Дата публикации должна быть в будущем.')
+            return
+          }
+
+          await this.eventService.scheduleEventPublish(eventId, scheduledDate)
+          await ctx.reply(`✅ Отложенная публикация настроена на ${this.formatDate(scheduledDate)}!`)
+        } catch (error) {
+          console.error('Error scheduling publish:', error)
+          await ctx.reply('❌ Ошибка при настройке отложенной публикации.')
+        }
+        return
+      }
+      return next()
+    }
+  }
+
+  private parseDateTime(dateTimeStr: string): Date | null {
+    const parts = dateTimeStr.match(/^(\d{2})\.(\d{2})\.(\d{4}), (\d{2}):(\d{2})$/)
+    if (!parts) {
+      return null
+    }
+    const [_, day, month, year, hours, minutes] = parts.map(Number)
+    const date = new Date(year, month - 1, day, hours, minutes, 0)
+    return date
+  }
+
+  private formatDate(date: Date): string {
+    return date.toLocaleString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
   private setupCommands(): void {
     // Команды будут установлены после запуска бота в методе init()
 
@@ -117,6 +169,7 @@ export class TelegramBot {
 
     this.bot.use(session())
     this.bot.use(this.createUserMiddleware())
+    this.bot.use(this.createSchedulePublishMiddleware())
     this.bot.use(this.stage.middleware())
   }
 
@@ -175,6 +228,11 @@ export class TelegramBot {
     this.bot.action(/^publish_event_(\d+)$/, ctx => {
       const eventId = parseInt(ctx.match[1])
       return this.adminController.publishEvent(ctx, eventId)
+    })
+
+    this.bot.action(/^schedule_publish_(\d+)$/, ctx => {
+      const eventId = parseInt(ctx.match[1])
+      return this.adminController.schedulePublish(ctx, eventId)
     })
 
     this.bot.action(/^edit_event_(\d+)$/, ctx => {
@@ -329,10 +387,23 @@ export class TelegramBot {
     }
 
     try {
-      await this.bot.launch()
-      this.log('Bot started in polling mode')
+      console.log('🔄 Вызываем bot.launch()...')
+      // Запускаем polling без await, чтобы не блокировать выполнение
+      this.bot
+        .launch()
+        .then(() => {
+          console.log('✅ Polling запущен в фоновом режиме')
+          this.log('Bot started in polling mode')
+        })
+        .catch(error => {
+          console.error('❌ Ошибка в фоновом polling:', error)
+        })
+
+      // Даем небольшую задержку для инициализации
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      console.log('✅ bot.launch() инициализирован успешно')
     } catch (error) {
-      console.error('Polling launch failed:', error)
+      console.error('❌ Polling launch failed:', error)
       throw error
     }
   }

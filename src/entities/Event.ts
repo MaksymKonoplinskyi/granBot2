@@ -45,6 +45,9 @@ export class Event {
   @Column({ type: 'text', nullable: true })
   imageFileName!: string | null
 
+  @Column({ type: 'datetime', nullable: true })
+  scheduledPublishDate!: Date | null
+
   @OneToMany(() => EventParticipant, participant => participant.event)
   participants!: EventParticipant[]
 

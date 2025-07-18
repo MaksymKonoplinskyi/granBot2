@@ -206,7 +206,10 @@ async function createEvent(ctx: BotContext, state: CreateEventSceneState, eventS
 
     const event = await eventService.createEvent(eventData)
 
-    await ctx.reply(`✅ Встреча успешно создана!\n\n` + `📅 ${event.title}\n` + `🕒 ${DateFormatter.formatDate(event.startDate)} - ${DateFormatter.formatDate(event.endDate)}\n` + `📝 ${event.description}\n` + `💰 Стоимость: ${event.fullPaymentAmount} грн\n` + `${event.advancePaymentAmount ? `💳 Предоплата: ${event.advancePaymentAmount} грн\n` : ''}` + `\n📝 Статус: Черновик (не опубликована)\n\n` + `Что дальше?`, Markup.inlineKeyboard([[Markup.button.callback('✅ Опубликовать сейчас', `publish_event_${event.id}`)], [Markup.button.callback('✏️ Редактировать', `edit_event_${event.id}`)], [Markup.button.callback('📋 К списку встреч', 'admin_events')], [Markup.button.callback('🏠 Главное меню', 'main_menu')]]))
+    await ctx.reply(
+      `✅ Встреча успешно создана!\n\n` + `📅 ${event.title}\n` + `🕒 ${DateFormatter.formatDate(event.startDate)} - ${DateFormatter.formatDate(event.endDate)}\n` + `📝 ${event.description}\n` + `💰 Стоимость: ${event.fullPaymentAmount} грн\n` + `${event.advancePaymentAmount ? `💳 Предоплата: ${event.advancePaymentAmount} грн\n` : ''}` + `\n📝 Статус: Черновик (не опубликована)\n\n` + `Что дальше?`,
+      Markup.inlineKeyboard([[Markup.button.callback('✅ Опубликовать сейчас', `publish_event_${event.id}`)], [Markup.button.callback('⏰ Отложенная публикация', `schedule_publish_${event.id}`)], [Markup.button.callback('✏️ Редактировать', `edit_event_${event.id}`)], [Markup.button.callback('📋 К списку встреч', 'admin_events')], [Markup.button.callback('🏠 Главное меню', 'main_menu')]])
+    )
 
     return ctx.scene.leave()
   } catch (error) {

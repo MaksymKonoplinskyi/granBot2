@@ -112,4 +112,8 @@ export class EventRepository {
       order: { startDate: 'DESC' },
     })
   }
+
+  async findScheduledForPublish(currentDate: Date): Promise<Event[]> {
+    return this.repository.createQueryBuilder('event').leftJoinAndSelect('event.participants', 'participants').leftJoinAndSelect('participants.user', 'user').where('event.isPublished = :isPublished', { isPublished: false }).andWhere('event.isCancelled = :isCancelled', { isCancelled: false }).andWhere('event.scheduledPublishDate IS NOT NULL').andWhere('event.scheduledPublishDate < :currentDate', { currentDate: currentDate.toISOString() }).getMany()
+  }
 }

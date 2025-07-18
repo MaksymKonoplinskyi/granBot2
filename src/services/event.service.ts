@@ -70,6 +70,7 @@ export class EventService {
       advancePaymentDeadline: event.advancePaymentDeadline,
       imageFileId: event.imageFileId,
       imageFileName: event.imageFileName,
+      scheduledPublishDate: event.scheduledPublishDate,
       isPublished: event.isPublished,
       isCancelled: event.isCancelled,
       participantCount: event.participants.length,
@@ -235,5 +236,83 @@ export class EventService {
       return false
     }
     return this.isEventComplete(event)
+  }
+
+  async scheduleEventPublish(eventId: number, publishDate: Date): Promise<void> {
+    const event = await this.eventRepository.findById(eventId)
+    if (!event) {
+      throw new Error('Event not found')
+    }
+
+    if (event.isPublished) {
+      throw new Error('Event is already published')
+    }
+
+    event.scheduledPublishDate = publishDate
+    await this.eventRepository.save(event)
+  }
+
+  async cancelScheduledPublish(eventId: number): Promise<void> {
+    const event = await this.eventRepository.findById(eventId)
+    if (!event) {
+      throw new Error('Event not found')
+    }
+
+    event.scheduledPublishDate = null
+    await this.eventRepository.save(event)
+  }
+
+  async checkAndPublishScheduledEvents(): Promise<void> {
+    try {
+      const now = new Date()
+      console.log(`🔍 Checking for scheduled events to publish at ${now.toLocaleString('ru-RU')}`)
+
+      const events = await this.eventRepository.findScheduledForPublish(now)
+      console.log(`📅 Found ${events.length} events scheduled for publication`)
+
+      if (events.length === 0) {
+        console.log(`ℹ️ No scheduled events found for publication`)
+        return
+      }
+
+      let publishedCount = 0
+      let errorCount = 0
+
+      for (const event of events) {
+        try {
+          console.log(`📋 Processing event: "${event.title}" (ID: ${event.id})`)
+          console.log(`   - Scheduled: ${event.scheduledPublishDate?.toLocaleString('ru-RU')}`)
+          console.log(`   - Current: ${now.toLocaleString('ru-RU')}`)
+          console.log(`   - Published: ${event.isPublished}`)
+          console.log(`   - Cancelled: ${event.isCancelled}`)
+
+          if (this.isEventComplete(event)) {
+            console.log(`✅ Event "${event.title}" is complete, publishing...`)
+
+            // Прямое обновление без лишнего findById
+            event.isPublished = true
+            event.scheduledPublishDate = null
+            await this.eventRepository.save(event)
+
+            publishedCount++
+            console.log(`✅ Event "${event.title}" published automatically`)
+          } else {
+            console.log(`⚠️ Event "${event.title}" is not complete, skipping publication`)
+            console.log(`   - Title: ${!!event.title}`)
+            console.log(`   - Description: ${!!event.description}`)
+            console.log(`   - StartDate: ${!!event.startDate}`)
+            console.log(`   - EndDate: ${!!event.endDate}`)
+            console.log(`   - FullPaymentAmount: ${event.fullPaymentAmount !== undefined}`)
+          }
+        } catch (error) {
+          errorCount++
+          console.error(`❌ Error auto-publishing event ${event.id}:`, error)
+        }
+      }
+
+      console.log(`📊 Publication summary: ${publishedCount} published, ${errorCount} errors`)
+    } catch (error) {
+      console.error('❌ Critical error in checkAndPublishScheduledEvents:', error)
+    }
   }
 }

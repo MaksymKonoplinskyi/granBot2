@@ -20,7 +20,22 @@ export class DateFormatter {
     if (!parts) return null
 
     const [_, day, month, year, hours, minutes] = parts.map(Number)
-    return new Date(year, month - 1, day, hours, minutes, 0)
+
+    // Создаем дату в локальном часовом поясе пользователя
+    // new Date(year, month-1, day, hours, minutes) создает время в локальном поясе
+    const localDate = new Date(year, month - 1, day, hours, minutes, 0)
+
+    // Проверяем что дата валидна
+    if (isNaN(localDate.getTime())) return null
+
+    return localDate
+  }
+
+  static generateDateTimeExample(): string {
+    const now = new Date()
+    // Добавляем 1 час к текущему времени для примера
+    const exampleDate = new Date(now.getTime() + 60 * 60 * 1000)
+    return this.formatDate(exampleDate)
   }
 }
 

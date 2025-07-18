@@ -22,6 +22,9 @@ import { EventParticipant } from './entities/EventParticipant'
 import { User } from './entities/User'
 import { PaymentDetails } from './entities/PaymentDetails'
 import { ClubInfo } from './entities/ClubInfo'
+import { EventRepository } from './repositories/event.repository'
+import { UserRepository } from './repositories/user.repository'
+import { EventService } from './services/event.service'
 
 // Создаем конфигурацию базы данных
 const AppDataSource = new DataSource({
@@ -55,23 +58,73 @@ async function main() {
     }
 
     // Создаем экземпляр бота
+    console.log('🤖 Создаем экземпляр бота...')
     const bot = new TelegramBot(botConfig, AppDataSource)
 
     // Инициализируем бота
+    console.log('🔧 Инициализируем бота...')
     await bot.init()
+    console.log('✅ Бот инициализирован')
 
-    // Запускаем бота
+    // Запускаем бота с обработкой ошибок
+    console.log('🚀 Запускаем бота...')
     if (BOT_CONFIG.WEBHOOK_URL) {
+      console.log('🌐 Запуск в режиме webhook...')
       await bot.launchWebhook(BOT_CONFIG.WEBHOOK_URL, BOT_CONFIG.PORT)
     } else {
-      await bot.launchPolling()
+      console.log('🔄 Запуск в режиме polling...')
+      try {
+        await bot.launchPolling()
+        console.log('✅ Polling запущен успешно')
+      } catch (error: any) {
+        console.log(`❌ Ошибка при запуске polling: ${error.message}`)
+        if (error.description && error.description.includes('Conflict')) {
+          console.log('⚠️ Обнаружен конфликт бота (409). Останавливаем другие экземпляры...')
+          // Ждем 3 секунды и пытаемся снова
+          await new Promise(resolve => setTimeout(resolve, 3000))
+          console.log('🔄 Повторная попытка запуска...')
+          await bot.launchPolling()
+          console.log('✅ Polling запущен успешно (после повтора)')
+        } else {
+          throw error
+        }
+      }
     }
+
+    // Создаем EventService для автоматической публикации ПЕРЕД запуском бота
+    console.log('📋 Создаем систему автоматической публикации...')
+    const eventRepository = new EventRepository(AppDataSource)
+    const userRepository = new UserRepository(AppDataSource)
+    const eventService = new EventService(eventRepository, userRepository)
+
+    // Выполняем первоначальную проверку при запуске
+    console.log('🔍 Выполняем первоначальную проверку отложенных публикаций...')
+    try {
+      await eventService.checkAndPublishScheduledEvents()
+      console.log('✅ Первоначальная проверка завершена успешно')
+    } catch (error) {
+      console.error('❌ Ошибка в первоначальной проверке:', error)
+    }
+
+    // Запускаем автоматическую проверку событий каждые 2 минуты (для более быстрой отработки)
+    const checkInterval = setInterval(async () => {
+      try {
+        console.log('🔄 Запуск периодической проверки отложенных публикаций...')
+        await eventService.checkAndPublishScheduledEvents()
+      } catch (error) {
+        console.error('❌ Ошибка в периодической проверке:', error)
+      }
+    }, 2 * 60 * 1000) // 2 минуты
+
+    console.log('⏰ Автоматическая проверка отложенных публикаций запущена (каждые 2 минуты)')
+    console.log('💡 Система автоматической публикации готова к работе!')
 
     console.log('✅ Бот запущен успешно!')
 
     // Graceful shutdown
     process.on('SIGINT', () => {
       console.log('\n🛑 Получен сигнал SIGINT, завершаем работу...')
+      clearInterval(checkInterval)
       bot.stop('SIGINT')
       AppDataSource.destroy()
       process.exit(0)
@@ -79,6 +132,7 @@ async function main() {
 
     process.on('SIGTERM', () => {
       console.log('\n🛑 Получен сигнал SIGTERM, завершаем работу...')
+      clearInterval(checkInterval)
       bot.stop('SIGTERM')
       AppDataSource.destroy()
       process.exit(0)
