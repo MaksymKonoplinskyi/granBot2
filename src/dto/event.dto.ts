@@ -15,6 +15,8 @@ export class EventDataDto extends BaseEventDto {
   fullPaymentAmount!: number | null
   advancePaymentAmount?: number | null
   advancePaymentDeadline?: Date | null
+  imageFileId?: string | null
+  imageFileName?: string | null
 }
 
 // DTO для создания события
@@ -31,6 +33,8 @@ export class UpdateEventDto implements Partial<EventDataDto> {
   fullPaymentAmount?: number | null
   advancePaymentAmount?: number | null
   advancePaymentDeadline?: Date | null
+  imageFileId?: string | null
+  imageFileName?: string | null
   isPublished?: boolean
   isCancelled?: boolean
 }
@@ -55,6 +59,8 @@ export class EventDetailsDto extends EventWithIdDto {
   fullPaymentAmount!: number | null
   advancePaymentAmount?: number | null
   advancePaymentDeadline?: Date | null
+  imageFileId?: string | null
+  imageFileName?: string | null
   participants!: EventParticipantDto[]
 }
 

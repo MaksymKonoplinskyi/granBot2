@@ -6,11 +6,13 @@ import { isAdmin } from '../utils/auth.utils'
 import { DateFormatter } from '../utils/formatters'
 
 interface CreateEventSceneState {
-  step: 'title' | 'start_date' | 'end_date' | 'description' | 'full_payment' | 'advance_payment'
+  step: 'title' | 'start_date' | 'end_date' | 'description' | 'image' | 'full_payment' | 'advance_payment'
   title?: string
   startDate?: Date
   endDate?: Date
   description?: string
+  imageFileId?: string | null
+  imageFileName?: string | null
   fullPaymentAmount?: number
   advancePaymentAmount?: number | null
   allowOnSitePayment?: boolean
@@ -42,7 +44,34 @@ export const createEventScene = (eventService: EventService) => {
       step: 'title',
     }
 
-    await ctx.reply('Создание новой встречи\n\nШаг 1/6: Введите название встречи:', Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+    await ctx.reply('Создание новой встречи\n\nШаг 1/7: Введите название встречи:', Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+  })
+
+  // Обработка изображений
+  scene.on('photo', async ctx => {
+    if (!isAdmin(ctx.from?.id)) {
+      await ctx.reply(MESSAGES.ERROR_ACCESS_DENIED)
+      return ctx.scene.leave()
+    }
+
+    const state = (ctx.session as any)?.createEventState as CreateEventSceneState
+    if (!state || state.step !== 'image') {
+      await ctx.reply('Сейчас не время для загрузки изображения')
+      return
+    }
+
+    try {
+      // Получаем самое большое изображение из массива
+      const photo = ctx.message.photo[ctx.message.photo.length - 1]
+      state.imageFileId = photo.file_id
+      state.imageFileName = `event_image_${Date.now()}.jpg`
+      state.step = 'full_payment'
+
+      await ctx.reply(`✅ Изображение сохранено!\n\nНазвание: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n🖼 Изображение: загружено\n\nШаг 6/7: Введите стоимость участия в гривнах (только число):\nПример: 200`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+    } catch (error) {
+      console.error('Error handling photo:', error)
+      await ctx.reply('Ошибка при загрузке изображения. Попробуйте еще раз или пропустите этот шаг.')
+    }
   })
 
   scene.on('text', async ctx => {
@@ -58,7 +87,7 @@ export const createEventScene = (eventService: EventService) => {
         case 'title':
           state.title = ctx.message.text
           state.step = 'start_date'
-          await ctx.reply(`Название: ${state.title}\n\nШаг 2/6: Введите дату и время начала встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 25.07.2025, 11:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\n\nШаг 2/7: Введите дату и время начала встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 25.07.2025, 11:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'start_date':
@@ -69,7 +98,7 @@ export const createEventScene = (eventService: EventService) => {
           }
           state.startDate = startDate
           state.step = 'end_date'
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate)}\n\nШаг 3/6: Введите дату и время окончания встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 26.07.2025, 22:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate)}\n\nШаг 3/7: Введите дату и время окончания встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 26.07.2025, 22:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'end_date':
@@ -84,13 +113,19 @@ export const createEventScene = (eventService: EventService) => {
           }
           state.endDate = endDate
           state.step = 'description'
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate)}\n\nШаг 4/6: Введите описание встречи:`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate)}\n\nШаг 4/7: Введите описание встречи:`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'description':
           state.description = ctx.message.text
+          state.step = 'image'
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n\nШаг 5/7: Отправьте изображение для встречи или нажмите "Пропустить"`, Markup.inlineKeyboard([[Markup.button.callback('⏭ Пропустить', 'skip_image')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          break
+
+        case 'image':
+          // Обработка изображения - пока просто пропускаем
           state.step = 'full_payment'
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n\nШаг 5/6: Введите стоимость участия в гривнах (только число):\nПример: 200`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n\nШаг 6/7: Введите стоимость участия в гривнах (только число):\nПример: 200`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'full_payment':
@@ -101,7 +136,7 @@ export const createEventScene = (eventService: EventService) => {
           }
           state.fullPaymentAmount = fullPayment
           state.step = 'advance_payment'
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n\nШаг 6/6: Предоплата заранее\nВведите стоимость при оплате заранее (грн) или 0 если предоплата не нужна:`, Markup.inlineKeyboard([[Markup.button.callback('0 - без предоплаты', 'no_advance_payment')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n\nШаг 7/7: Предоплата заранее\nВведите стоимость при оплате заранее (грн) или 0 если предоплата не нужна:`, Markup.inlineKeyboard([[Markup.button.callback('0 - без предоплаты', 'no_advance_payment')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'advance_payment':
@@ -122,6 +157,15 @@ export const createEventScene = (eventService: EventService) => {
       await ctx.reply(MESSAGES.ERROR_GENERAL)
       return ctx.scene.leave()
     }
+  })
+
+  scene.action('skip_image', async ctx => {
+    await ctx.answerCbQuery()
+    const state = (ctx.session as any)?.createEventState as CreateEventSceneState
+    state.imageFileId = null
+    state.imageFileName = null
+    state.step = 'full_payment'
+    await ctx.editMessageText(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n\nШаг 6/7: Введите стоимость участия в гривнах (только число):\nПример: 200`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
   })
 
   scene.action('no_advance_payment', async ctx => {
@@ -154,6 +198,8 @@ async function createEvent(ctx: BotContext, state: CreateEventSceneState, eventS
       advancePaymentDeadline: state.advancePaymentAmount ? new Date(state.startDate!.getTime() - 24 * 60 * 60 * 1000) : null, // За сутки до начала
       allowOnSitePayment: state.allowOnSitePayment!,
       location: null, // Можно добавить в будущем
+      imageFileId: state.imageFileId,
+      imageFileName: state.imageFileName,
       isPublished: false,
       isCancelled: false,
     }

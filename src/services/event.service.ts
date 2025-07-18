@@ -68,6 +68,8 @@ export class EventService {
       fullPaymentAmount: event.fullPaymentAmount,
       advancePaymentAmount: event.advancePaymentAmount,
       advancePaymentDeadline: event.advancePaymentDeadline,
+      imageFileId: event.imageFileId,
+      imageFileName: event.imageFileName,
       isPublished: event.isPublished,
       isCancelled: event.isCancelled,
       participantCount: event.participants.length,

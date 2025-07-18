@@ -4,10 +4,11 @@ import { EventService } from '../services/event.service'
 import { MESSAGES } from '../constants/messages'
 import { isAdmin } from '../utils/auth.utils'
 import { DateFormatter } from '../utils/formatters'
+import { showEventsManagementMenu } from '../utils/admin-menus'
 
 interface EditEventSceneState {
   eventId: number
-  editingField?: 'title' | 'start_date' | 'end_date' | 'description' | 'full_payment' | 'advance_payment'
+  editingField?: 'title' | 'start_date' | 'end_date' | 'description' | 'full_payment' | 'advance_payment' | 'image'
 }
 
 // Вспомогательная функция для парсинга даты в формате DD.MM.YYYY, HH:mm
@@ -49,6 +50,41 @@ export const createEditEventScene = (eventService: EventService) => {
       console.error('Error entering edit event scene:', error)
       await ctx.reply(MESSAGES.ERROR_GENERAL)
       return ctx.scene.leave()
+    }
+  })
+
+  // Обработка изображений
+  scene.on('photo', async ctx => {
+    if (!isAdmin(ctx.from?.id)) {
+      await ctx.reply(MESSAGES.ERROR_ACCESS_DENIED)
+      return ctx.scene.leave()
+    }
+
+    try {
+      const state = (ctx.session as any)?.editEventState as EditEventSceneState
+
+      if (!state || state.editingField !== 'image') {
+        await ctx.reply('Сейчас не время для загрузки изображения. Сначала выберите "Редактировать изображение" из меню.')
+        return
+      }
+
+      // Получаем самое большое изображение из массива
+      const photo = ctx.message.photo[ctx.message.photo.length - 1]
+      const updateData = {
+        imageFileId: photo.file_id,
+        imageFileName: `event_image_${Date.now()}.jpg`,
+      }
+
+      await eventService.updateEvent(state.eventId, updateData)
+
+      // Сбрасываем состояние редактирования
+      state.editingField = undefined
+
+      await ctx.reply('✅ Изображение обновлено!')
+      await showEventEditMenu(ctx, eventService, state.eventId)
+    } catch (error) {
+      console.error('Error updating event image:', error)
+      await ctx.reply('Ошибка при обновлении изображения. Попробуйте еще раз.')
     }
   })
 
@@ -181,6 +217,17 @@ export const createEditEventScene = (eventService: EventService) => {
       case 'advance_payment':
         await ctx.reply(`Текущая предоплата: ${event.advancePaymentAmount ? `${event.advancePaymentAmount} грн` : 'Не установлена'}\n\nВведите новую стоимость предоплаты (только число или 0 для отключения):`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_edit')]]))
         break
+
+      case 'image':
+        const imageStatus = event.imageFileId ? '🖼 Изображение загружено' : '📷 Изображение отсутствует'
+        const buttons = [[Markup.button.callback('📷 Загрузить новое изображение', 'upload_new_image')], [Markup.button.callback('❌ Отмена', 'cancel_edit')]]
+
+        if (event.imageFileId) {
+          buttons.splice(1, 0, [Markup.button.callback('🗑 Удалить изображение', 'delete_image')])
+        }
+
+        await ctx.reply(`${imageStatus}\n\nВыберите действие:`, Markup.inlineKeyboard(buttons))
+        break
     }
   })
 
@@ -211,6 +258,33 @@ export const createEditEventScene = (eventService: EventService) => {
     await showEventEditMenu(ctx, eventService, state.eventId)
   })
 
+  scene.action('upload_new_image', async ctx => {
+    await ctx.answerCbQuery()
+    await ctx.editMessageText('📷 Отправьте новое изображение для встречи:', Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_edit')]]))
+  })
+
+  scene.action('delete_image', async ctx => {
+    await ctx.answerCbQuery()
+
+    try {
+      const state = (ctx.session as any)?.editEventState as EditEventSceneState
+
+      await eventService.updateEvent(state.eventId, {
+        imageFileId: null,
+        imageFileName: null,
+      })
+
+      state.editingField = undefined
+      await ctx.editMessageText('🗑 Изображение удалено!')
+      setTimeout(() => {
+        showEventEditMenu(ctx, eventService, state.eventId)
+      }, 1000)
+    } catch (error) {
+      console.error('Error deleting image:', error)
+      await ctx.reply('Ошибка при удалении изображения')
+    }
+  })
+
   scene.action('cancel_edit', async ctx => {
     await ctx.answerCbQuery()
     const state = (ctx.session as any)?.editEventState as EditEventSceneState
@@ -220,7 +294,10 @@ export const createEditEventScene = (eventService: EventService) => {
 
   scene.action('back_to_events', async ctx => {
     await ctx.answerCbQuery()
-    return ctx.scene.leave()
+    ctx.scene.leave()
+
+    // Показываем меню событий администратора
+    await showEventsManagementMenu(ctx)
   })
 
   return scene
@@ -234,10 +311,26 @@ async function showEventEditMenu(ctx: BotContext, eventService: EventService, ev
       return ctx.scene.leave()
     }
 
-    const eventText = `📝 Редактирование встречи\n\n` + `📅 Название: ${event.title}\n` + `🕒 Начало: ${DateFormatter.formatDate(event.startDate)}\n` + `🕕 Окончание: ${DateFormatter.formatDate(event.endDate)}\n` + `📄 Описание: ${event.description}\n` + `💰 Стоимость: ${event.fullPaymentAmount} грн\n` + `💳 Предоплата: ${event.advancePaymentAmount ? `${event.advancePaymentAmount} грн` : 'Не установлена'}\n` + `📊 Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n\n` + `Выберите поле для редактирования:`
+    const imageStatus = event.imageFileId ? '🖼 Загружено' : '📷 Отсутствует'
+    const eventText = `📝 Редактирование встречи\n\n` + `📅 Название: ${event.title}\n` + `🕒 Начало: ${DateFormatter.formatDate(event.startDate)}\n` + `🕕 Окончание: ${DateFormatter.formatDate(event.endDate)}\n` + `📄 Описание: ${event.description}\n` + `🖼 Изображение: ${imageStatus}\n` + `💰 Стоимость: ${event.fullPaymentAmount} грн\n` + `💳 Предоплата: ${event.advancePaymentAmount ? `${event.advancePaymentAmount} грн` : 'Не установлена'}\n` + `📊 Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n\n` + `Выберите поле для редактирования:`
 
-    const buttons = [[Markup.button.callback('✏️ Название', 'edit_field_title')], [Markup.button.callback('🕒 Дата начала', 'edit_field_start_date')], [Markup.button.callback('🕕 Дата окончания', 'edit_field_end_date')], [Markup.button.callback('📄 Описание', 'edit_field_description')], [Markup.button.callback('💰 Стоимость', 'edit_field_full_payment')], [Markup.button.callback('💳 Предоплата', 'edit_field_advance_payment')], [Markup.button.callback(event.isPublished ? '📝 Снять с публикации' : '✅ Опубликовать', 'toggle_publish')], [Markup.button.callback('◀️ К списку встреч', 'back_to_events')]]
+    const buttons = [[Markup.button.callback('✏️ Название', 'edit_field_title')], [Markup.button.callback('🕒 Дата начала', 'edit_field_start_date')], [Markup.button.callback('🕕 Дата окончания', 'edit_field_end_date')], [Markup.button.callback('📄 Описание', 'edit_field_description')], [Markup.button.callback('🖼 Изображение', 'edit_field_image')], [Markup.button.callback('💰 Стоимость', 'edit_field_full_payment')], [Markup.button.callback('💳 Предоплата', 'edit_field_advance_payment')], [Markup.button.callback(event.isPublished ? '📝 Снять с публикации' : '✅ Опубликовать', 'toggle_publish')], [Markup.button.callback('◀️ К списку встреч', 'back_to_events')]]
 
+    // Если есть изображение, показываем его
+    if (event.imageFileId) {
+      try {
+        await ctx.replyWithPhoto(event.imageFileId, {
+          caption: eventText,
+          reply_markup: Markup.inlineKeyboard(buttons).reply_markup,
+        })
+        return
+      } catch (error) {
+        console.error('Error sending photo:', error)
+        // Если ошибка с изображением, отправляем обычное текстовое сообщение
+      }
+    }
+
+    // Отправляем обычное текстовое сообщение
     if (ctx.callbackQuery) {
       await ctx.editMessageText(eventText, Markup.inlineKeyboard(buttons))
     } else {

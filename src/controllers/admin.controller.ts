@@ -6,6 +6,7 @@ import { ClubInfoService } from '../services/club-info.service'
 import { MessageFormatter, DateFormatter } from '../utils/formatters'
 import { MESSAGES, BUTTONS } from '../constants/messages'
 import { isAdmin } from '../utils/auth.utils'
+import { showEventsManagementMenu } from '../utils/admin-menus'
 
 export class AdminController {
   constructor(private eventService: EventService, private paymentDetailsService: PaymentDetailsService, private clubInfoService: ClubInfoService) {}
@@ -74,7 +75,7 @@ export class AdminController {
     }
 
     await ctx.answerCbQuery()
-    await ctx.editMessageText('Выберите тип встреч:', Markup.inlineKeyboard([[Markup.button.callback('📅 Ближайшие', 'admin_upcoming_events'), Markup.button.callback('📅 Прошедшие', 'admin_past_events')], [Markup.button.callback('📅 Все', 'admin_all_events')], [Markup.button.callback('◀️ Назад', 'admin')]]))
+    await showEventsManagementMenu(ctx)
   }
 
   async publishEvent(ctx: BotContext, eventId: number): Promise<void> {

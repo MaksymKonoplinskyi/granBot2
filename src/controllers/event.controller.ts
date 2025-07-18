@@ -35,6 +35,21 @@ export class EventController {
 
       const buttons = this.getEventActionButtons(event, ctx.from?.id)
 
+      // Если есть изображение, отправляем его отдельно
+      if (event.imageFileId) {
+        try {
+          await ctx.replyWithPhoto(event.imageFileId, {
+            caption: messageText,
+            reply_markup: Markup.inlineKeyboard(buttons).reply_markup,
+          })
+          return
+        } catch (error) {
+          console.error('Error sending photo:', error)
+          // Если ошибка с изображением, отправляем обычное текстовое сообщение
+        }
+      }
+
+      // Отправляем обычное текстовое сообщение
       if (ctx.callbackQuery) {
         await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons))
       } else {

@@ -39,6 +39,12 @@ export class Event {
   @Column({ type: 'text', nullable: true })
   location!: string | null
 
+  @Column({ type: 'text', nullable: true })
+  imageFileId!: string | null
+
+  @Column({ type: 'text', nullable: true })
+  imageFileName!: string | null
+
   @OneToMany(() => EventParticipant, participant => participant.event)
   participants!: EventParticipant[]
 
