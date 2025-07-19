@@ -15,6 +15,7 @@ import { ClubInfoController } from '../controllers/club-info.controller'
 import { MESSAGES, BUTTONS } from '../constants/messages'
 import { isAdmin } from '../utils/auth.utils'
 import { ADMINS, PAYMENT_ADMIN_ID } from '../config'
+import { safeEditMessage } from '../utils/message-utils'
 
 export class TelegramBot {
   private readonly bot: Telegraf<BotContext>
@@ -347,7 +348,9 @@ export class TelegramBot {
 
       buttons.push([Markup.button.callback('❌ Отменить', `event_details_${event.id}`)])
 
-      await ctx.editMessageText(`Выберите вариант оплаты для встречи "${event.title}":`, Markup.inlineKeyboard(buttons))
+      const paymentText = `Выберите вариант оплаты для встречи "${event.title}":`
+
+      await safeEditMessage(ctx, paymentText, Markup.inlineKeyboard(buttons))
     } catch (error) {
       console.error('Error handling join event:', error)
       await ctx.answerCbQuery(MESSAGES.ERROR_GENERAL)
