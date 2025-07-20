@@ -165,6 +165,12 @@ export class EventController {
         if (userParticipation === ParticipationStatus.PENDING_PAYMENT) {
           buttons.push([Markup.button.callback(BUTTONS.PAY_NOW, `pay_event_${event.id}`)])
         }
+
+        // Добавляем кнопку "Оплатить заранее" если пользователь выбрал оплату на месте
+        // и оплата заранее еще доступна
+        if (userParticipation === ParticipationStatus.PAYMENT_ON_SITE && event.advancePaymentAmount && event.advancePaymentDeadline && now < event.advancePaymentDeadline) {
+          buttons.push([Markup.button.callback(BUTTONS.PAY_ADVANCE, `pay_event_${event.id}`)])
+        }
       }
     }
 

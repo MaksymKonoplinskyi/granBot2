@@ -81,6 +81,13 @@ export class TelegramBot {
       if (ctx.from?.id) {
         try {
           await this.userRepository.findOrCreateByTelegramId(ctx.from.id, ctx.from.username, ctx.from.first_name, ctx.from.last_name)
+
+          // Периодически проверяем и переустанавливаем команды для конкретного пользователя
+          // Делаем это только для каждого 50-го пользователя, чтобы не перегружать API
+          if (Math.random() < 0.02) {
+            // 2% вероятность
+            this.ensureCommandsAreSet().catch(console.error)
+          }
         } catch (error) {
           console.error('Error creating/finding user:', error)
         }
@@ -410,17 +417,9 @@ export class TelegramBot {
     }
   }
 
-  public async init(): Promise<void> {
-    if (this.isInitialized) {
-      throw new Error('Bot already initialized')
-    }
-
-    // Устанавливаем команды бота после инициализации
+  private async ensureCommandsAreSet(): Promise<void> {
     try {
-      // Сначала удаляем все команды
-      await this.bot.telegram.deleteMyCommands()
-
-      // Затем устанавливаем новые команды
+      // Устанавливаем команды для всех пользователей
       await this.bot.telegram.setMyCommands([
         { command: 'start', description: '🏠 Главное меню' },
         { command: 'new_events', description: '📅 Ближайшие встречи' },
@@ -428,10 +427,36 @@ export class TelegramBot {
         { command: 'myid', description: '🆔 Мой Telegram ID' },
         { command: 'help', description: '❓ Помощь' },
       ])
-      console.log('✅ Команды бота обновлены')
+
+      // Также устанавливаем команды для приватных чатов
+      await this.bot.telegram.setMyCommands(
+        [
+          { command: 'start', description: '🏠 Главное меню' },
+          { command: 'new_events', description: '📅 Ближайшие встречи' },
+          { command: 'my_events', description: '👥 Мои встречи' },
+          { command: 'myid', description: '🆔 Мой Telegram ID' },
+          { command: 'help', description: '❓ Помощь' },
+        ],
+        { scope: { type: 'all_private_chats' } }
+      )
+
+      console.log('✅ Команды бота успешно установлены')
     } catch (error) {
       console.error('❌ Ошибка установки команд:', error)
+      // Попробуем еще раз через 5 секунд
+      setTimeout(() => {
+        this.ensureCommandsAreSet().catch(console.error)
+      }, 5000)
     }
+  }
+
+  public async init(): Promise<void> {
+    if (this.isInitialized) {
+      throw new Error('Bot already initialized')
+    }
+
+    // Устанавливаем команды бота
+    await this.ensureCommandsAreSet()
 
     this.isInitialized = true
     this.log('Bot initialized')
@@ -444,12 +469,21 @@ export class TelegramBot {
 
     try {
       console.log('🔄 Вызываем bot.launch()...')
-      // Запускаем polling без await, чтобы не блокировать выполнение
+
+      // Запускаем polling
       this.bot
         .launch()
-        .then(() => {
+        .then(async () => {
           console.log('✅ Polling запущен в фоновом режиме')
           this.log('Bot started in polling mode')
+
+          // Переустанавливаем команды после успешного запуска
+          await this.ensureCommandsAreSet()
+
+          // Периодически переустанавливаем команды (каждые 10 минут)
+          setInterval(() => {
+            this.ensureCommandsAreSet().catch(console.error)
+          }, 10 * 60 * 1000)
         })
         .catch(error => {
           console.error('❌ Ошибка в фоновом polling:', error)
