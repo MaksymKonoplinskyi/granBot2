@@ -4,6 +4,7 @@ import { EventService } from '../services/event.service'
 import { MessageFormatter } from '../utils/formatters'
 import { MESSAGES, BUTTONS } from '../constants/messages'
 import { ParticipationStatus } from '../entities/EventParticipant'
+import { isAdmin } from '../utils/auth.utils'
 
 export class EventController {
   constructor(private eventService: EventService) {}
@@ -31,7 +32,9 @@ export class EventController {
   async showEventDetails(ctx: BotContext, eventId: number): Promise<void> {
     try {
       const event = await this.eventService.getEventDetails(eventId, ctx.from?.id)
-      const messageText = MessageFormatter.formatEventDetails(event)
+
+      // Используем разное форматирование для админов и обычных пользователей
+      const messageText = isAdmin(ctx.from?.id) ? MessageFormatter.formatEventDetailsForAdmin(event) : MessageFormatter.formatEventDetails(event)
 
       const buttons = this.getEventActionButtons(event, ctx.from?.id)
 

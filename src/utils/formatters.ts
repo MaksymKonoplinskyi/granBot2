@@ -144,4 +144,73 @@ export class MessageFormatter {
 
     return progress
   }
+
+  // Функция для форматирования списка участников для админа
+  static formatParticipantsForAdmin(participants: any[]): string {
+    if (!participants || participants.length === 0) {
+      return '\n👥 Участники: пока никого нет\n'
+    }
+
+    let participantsText = '\n👥 Список участников:\n'
+
+    participants.forEach((participant, index) => {
+      const name = participant.firstName || 'Без имени'
+      const username = participant.username ? `(@${participant.username})` : ''
+      const statusIcon = this.getParticipationStatusIcon(participant.status)
+      const statusText = this.getParticipationStatusTextForAdmin(participant.status)
+
+      participantsText += `${index + 1}. ${name} ${username}\n   ${statusIcon} ${statusText}\n`
+    })
+
+    return participantsText
+  }
+
+  // Функция для получения иконки статуса оплаты
+  static getParticipationStatusIcon(status: ParticipationStatus): string {
+    switch (status) {
+      case ParticipationStatus.PAYMENT_CONFIRMED:
+        return '✅'
+      case ParticipationStatus.PAYMENT_CONFIRMATION:
+        return '⏳'
+      case ParticipationStatus.PAYMENT_ON_SITE:
+        return '🏛️'
+      case ParticipationStatus.PENDING_PAYMENT:
+        return '⚠️'
+      case ParticipationStatus.CANCELLED_NO_PAYMENT:
+        return '❌'
+      case ParticipationStatus.PENDING_REFUND:
+        return '💰'
+      default:
+        return '❓'
+    }
+  }
+
+  // Функция для получения текста статуса оплаты для админа
+  static getParticipationStatusTextForAdmin(status: ParticipationStatus): string {
+    switch (status) {
+      case ParticipationStatus.PAYMENT_CONFIRMED:
+        return 'Оплата подтверждена'
+      case ParticipationStatus.PAYMENT_CONFIRMATION:
+        return 'Ожидает подтверждения оплаты'
+      case ParticipationStatus.PAYMENT_ON_SITE:
+        return 'Оплата на месте'
+      case ParticipationStatus.PENDING_PAYMENT:
+        return 'Ожидает оплаты'
+      case ParticipationStatus.CANCELLED_NO_PAYMENT:
+        return 'Отменено без оплаты'
+      case ParticipationStatus.PENDING_REFUND:
+        return 'Ожидает возврата'
+      default:
+        return 'Неизвестный статус'
+    }
+  }
+
+  // Функция для детального отображения события для админа
+  static formatEventDetailsForAdmin(event: EventDetailsDto): string {
+    const basicInfo = `📅 ${event.title}\n\n` + `📝 Описание:\n${event.description || 'Не указано'}\n\n` + `🕒 Дата начала: ${DateFormatter.formatDate(event.startDate)}\n` + `🕕 Дата окончания: ${DateFormatter.formatDate(event.endDate)}\n` + `📍 Место: ${event.location || 'Не указано'}\n\n` + this.formatPaymentInfo(event) + `\n👥 Всего участников: ${event.participantCount}\n` + `${event.isCancelled ? '❌ Встреча отменена\n' : ''}`
+
+    const participantsList = this.formatParticipantsForAdmin(event.participants)
+
+    return basicInfo + participantsList
+  }
 }
