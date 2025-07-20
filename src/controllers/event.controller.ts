@@ -75,7 +75,15 @@ export class EventController {
       await this.eventService.joinEvent(eventId, ctx.from!.id, status, userData)
 
       await ctx.answerCbQuery(MESSAGES.SUCCESS_JOINED_EVENT)
-      await this.showEventDetails(ctx, eventId)
+
+      // Показываем конкретное сообщение в зависимости от типа оплаты
+      if (paymentType === 'onsite') {
+        // Для оплаты на месте - показываем список "Мои встречи"
+        await this.showUserEvents(ctx)
+      } else {
+        // Для других типов оплаты (advance/full) - переходим к выбору способа оплаты
+        await ctx.editMessageText('Теперь выберите способ оплаты:', Markup.inlineKeyboard([[Markup.button.callback('💳 Выбрать способ оплаты', `pay_event_${eventId}`)]]))
+      }
     } catch (error) {
       console.error('Error joining event:', error)
 
@@ -113,7 +121,13 @@ export class EventController {
       const events = await this.eventService.getUserEvents(ctx.from!.id, !showPast)
 
       if (events.length === 0) {
-        await ctx.reply(MESSAGES.EMPTY_USER_EVENTS, Markup.inlineKeyboard([[Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
+        const emptyMessage = showPast ? 'У вас нет прошедших встреч.' : 'У вас нет предстоящих встреч.'
+
+        if (ctx.callbackQuery) {
+          await ctx.editMessageText(emptyMessage, Markup.inlineKeyboard([[Markup.button.callback(showPast ? '▶️ Ближайшие встречи' : '◀️ Прошедшие встречи', `toggle_events${showPast ? '' : '_past'}_my`)], [Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
+        } else {
+          await ctx.reply(emptyMessage, Markup.inlineKeyboard([[Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
+        }
         return
       }
 
@@ -121,7 +135,7 @@ export class EventController {
 
       const buttons = events.map(event => [Markup.button.callback(`📋 ${event.title}`, `event_details_${event.id}`)])
 
-      buttons.push([Markup.button.callback(showPast ? BUTTONS.UPCOMING_EVENTS : 'Прошедшие встречи', `toggle_events${showPast ? '' : '_past'}_my`)])
+      buttons.push([Markup.button.callback(showPast ? '▶️ Ближайшие встречи' : '◀️ Прошедшие встречи', `toggle_events${showPast ? '' : '_past'}_my`)])
       buttons.push([Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')])
 
       if (ctx.callbackQuery) {
