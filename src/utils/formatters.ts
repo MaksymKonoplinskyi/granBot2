@@ -40,6 +40,32 @@ export class DateFormatter {
 }
 
 export class MessageFormatter {
+  // Новая функция для краткого форматирования события
+  static formatEventBrief(
+    event: any,
+    options?: {
+      showAdminStatus?: boolean
+      showUserStatus?: boolean
+    }
+  ): string {
+    const { showAdminStatus = false, showUserStatus = false } = options || {}
+
+    let result = `📅 ${event.title}\n` + `Дата начала: ${DateFormatter.formatDate(event.startDate)}\n` + `👥 Количество участников: ${event.participantCount || event.participants?.length || 0}\n`
+
+    if (showAdminStatus) {
+      result += `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n`
+      if (event.isCancelled) {
+        result += `Отменена: ❌ Да\n`
+      }
+    }
+
+    if (showUserStatus && event.userParticipationStatus) {
+      result += `Статус: ${this.getParticipationStatusText(event.userParticipationStatus)}\n`
+    }
+
+    return result
+  }
+
   static formatEventDetails(event: EventDetailsDto): string {
     return `📅 ${event.title}\n\n` + `📝 Описание:\n${event.description || 'Не указано'}\n\n` + `🕒 Дата начала: ${DateFormatter.formatDate(event.startDate)}\n` + `🕕 Дата окончания: ${DateFormatter.formatDate(event.endDate)}\n` + `📍 Место: ${event.location || 'Не указано'}\n\n` + this.formatPaymentInfo(event) + `\n👥 Количество участников: ${event.participantCount}\n` + `${event.isCancelled ? '❌ Встреча отменена\n' : ''}` + `👤 Ваш статус: ${this.getParticipationStatusText(event.userParticipationStatus)}\n`
   }
@@ -49,7 +75,7 @@ export class MessageFormatter {
       return 'Нет доступных встреч.'
     }
 
-    return events.map(event => `📅 ${event.title}\n` + `Дата начала: ${DateFormatter.formatDate(event.startDate)}\n` + `Дата окончания: ${DateFormatter.formatDate(event.endDate)}\n` + `Статус: ${this.getParticipationStatusText(event.userParticipationStatus)}\n`).join('\n')
+    return events.map(event => this.formatEventBrief(event, { showUserStatus: true })).join('\n')
   }
 
   static formatPaymentInfo(event: EventDetailsDto): string {

@@ -51,11 +51,7 @@ export class AdminController {
         return
       }
 
-      const messageText = events
-        .map(event => {
-          return `📅 ${event.title}\n` + `Дата начала: ${DateFormatter.formatDate(event.startDate)}\n` + `Дата окончания: ${DateFormatter.formatDate(event.endDate)}\n` + `Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` + `Отменена: ${event.isCancelled ? '❌ Да' : '✅ Нет'}\n` + `ID: ${event.id}\n`
-        })
-        .join('\n')
+      const messageText = events.map(event => MessageFormatter.formatEventBrief(event, { showAdminStatus: true })).join('\n')
 
       const buttons = events.map(event => [Markup.button.callback(`✏️ Редактировать "${event.title}"`, `edit_event_${event.id}`)])
 
