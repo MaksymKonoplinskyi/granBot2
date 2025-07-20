@@ -19,6 +19,18 @@ import { safeEditMessage } from '../utils/message-utils'
 import { DateFormatter } from '../utils/formatters'
 import { MessageFormatter } from '../utils/formatters'
 
+// Добавим enum для статуса посещения
+export enum AttendanceStatus {
+  UNKNOWN = 'unknown', // ❓ По умолчанию
+  ATTENDED = 'attended', // ✅ Пришел
+  NOT_ATTENDED = 'not_attended', // ❌ Не пришел
+}
+
+export enum OnSitePaymentStatus {
+  NOT_PAID = 'not_paid', // Не оплачено
+  PAID = 'paid', // Оплачено на месте
+}
+
 export class TelegramBot {
   private readonly bot: Telegraf<BotContext>
   private readonly eventService: EventService
@@ -347,6 +359,19 @@ export class TelegramBot {
       const eventId = parseInt(ctx.match[1])
       return this.showEventParticipants(ctx, eventId)
     })
+
+    // Действия с управлением участниками
+    this.bot.action(/^toggle_attendance_(\d+)_(\d+)$/, ctx => {
+      const eventId = parseInt(ctx.match[1])
+      const userId = parseInt(ctx.match[2])
+      return this.toggleAttendanceStatus(ctx, eventId, userId)
+    })
+
+    this.bot.action(/^toggle_onsite_payment_(\d+)_(\d+)$/, ctx => {
+      const eventId = parseInt(ctx.match[1])
+      const userId = parseInt(ctx.match[2])
+      return this.toggleOnSitePaymentStatus(ctx, eventId, userId)
+    })
   }
 
   private async handleJoinEvent(ctx: BotContext, eventId: number): Promise<void> {
@@ -547,7 +572,7 @@ export class TelegramBot {
         return
       }
 
-      // Получаем настройки отображения из сессии или используем по умолчанию
+      // Получаем настройки отображения и данные о посещении из сессии
       const session = ctx.session as any
       const participantViewOptions = session.participantViewOptions || {
         showRegistrationDate: false,
@@ -555,12 +580,24 @@ export class TelegramBot {
         showTelegramContact: false,
       }
 
-      const participantsText = MessageFormatter.formatParticipantsDetailed(event.participants, participantViewOptions)
+      // Инициализируем карту данных о посещении, если её нет
+      if (!session.attendanceData) {
+        session.attendanceData = new Map()
+      }
 
-      const buttons = MessageFormatter.createParticipantViewToggleButtons(eventId, participantViewOptions)
+      const participantsText = MessageFormatter.formatParticipantsDetailed(event.participants, participantViewOptions, session.attendanceData)
+
+      // Создаем кнопки управления участниками
+      const managementButtons = MessageFormatter.createParticipantManagementButtons(eventId, event.participants, session.attendanceData)
+
+      // Создаем кнопки переключения опций просмотра
+      const toggleButtons = MessageFormatter.createParticipantViewToggleButtons(eventId, participantViewOptions)
+
+      // Объединяем все кнопки
+      const allButtons = [...managementButtons, ...toggleButtons]
 
       await ctx.answerCbQuery()
-      await ctx.editMessageText(`📅 ${event.title}\n\n${participantsText}`, Markup.inlineKeyboard(buttons))
+      await ctx.editMessageText(`📅 ${event.title}\n\n${participantsText}`, Markup.inlineKeyboard(allButtons))
     } catch (error) {
       console.error('Error showing event participants:', error)
       await ctx.answerCbQuery('Ошибка при загрузке участников')
@@ -592,6 +629,75 @@ export class TelegramBot {
     } catch (error) {
       console.error('Error toggling participant option:', error)
       await ctx.answerCbQuery('Ошибка при переключении опции')
+    }
+  }
+
+  // Метод для переключения статуса посещения
+  private async toggleAttendanceStatus(ctx: BotContext, eventId: number, userId: number): Promise<void> {
+    if (!isAdmin(ctx.from?.id)) {
+      await ctx.answerCbQuery('У вас нет прав для этого действия')
+      return
+    }
+
+    try {
+      const session = ctx.session as any
+      if (!session.attendanceData) {
+        session.attendanceData = new Map()
+      }
+
+      // Получаем текущий статус или устанавливаем по умолчанию
+      const currentData = session.attendanceData.get(userId) || {
+        attendance: AttendanceStatus.UNKNOWN,
+      }
+
+      // Переключаем на следующий статус
+      const newAttendance = MessageFormatter.getNextAttendanceStatus(currentData.attendance)
+
+      session.attendanceData.set(userId, {
+        ...currentData,
+        attendance: newAttendance,
+      })
+
+      // Обновляем отображение
+      await this.showEventParticipants(ctx, eventId)
+    } catch (error) {
+      console.error('Error toggling attendance status:', error)
+      await ctx.answerCbQuery('Ошибка при изменении статуса посещения')
+    }
+  }
+
+  // Метод для переключения статуса оплаты на месте
+  private async toggleOnSitePaymentStatus(ctx: BotContext, eventId: number, userId: number): Promise<void> {
+    if (!isAdmin(ctx.from?.id)) {
+      await ctx.answerCbQuery('У вас нет прав для этого действия')
+      return
+    }
+
+    try {
+      const session = ctx.session as any
+      if (!session.attendanceData) {
+        session.attendanceData = new Map()
+      }
+
+      // Получаем текущие данные
+      const currentData = session.attendanceData.get(userId) || {
+        attendance: AttendanceStatus.UNKNOWN,
+        onSitePayment: OnSitePaymentStatus.NOT_PAID,
+      }
+
+      // Переключаем статус оплаты
+      const newPaymentStatus = currentData.onSitePayment === OnSitePaymentStatus.NOT_PAID ? OnSitePaymentStatus.PAID : OnSitePaymentStatus.NOT_PAID
+
+      session.attendanceData.set(userId, {
+        ...currentData,
+        onSitePayment: newPaymentStatus,
+      })
+
+      // Обновляем отображение
+      await this.showEventParticipants(ctx, eventId)
+    } catch (error) {
+      console.error('Error toggling onsite payment status:', error)
+      await ctx.answerCbQuery('Ошибка при изменении статуса оплаты')
     }
   }
 

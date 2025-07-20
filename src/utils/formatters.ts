@@ -40,6 +40,18 @@ export class DateFormatter {
   }
 }
 
+// Добавим enum для статуса посещения
+export enum AttendanceStatus {
+  UNKNOWN = 'unknown', // ❓ По умолчанию
+  ATTENDED = 'attended', // ✅ Пришел
+  NOT_ATTENDED = 'not_attended', // ❌ Не пришел
+}
+
+export enum OnSitePaymentStatus {
+  NOT_PAID = 'not_paid', // Не оплачено
+  PAID = 'paid', // Оплачено на месте
+}
+
 export class MessageFormatter {
   // Новая функция для краткого форматирования события
   static formatEventBrief(
@@ -215,14 +227,15 @@ export class MessageFormatter {
     return basicInfo + participantsList
   }
 
-  // Функция для форматирования детального списка участников с переключателями
+  // Обновленная функция для детального списка участников с кнопками управления
   static formatParticipantsDetailed(
     participants: any[],
     options: {
       showRegistrationDate?: boolean
       showPaymentDate?: boolean
       showTelegramContact?: boolean
-    } = {}
+    } = {},
+    attendanceData: Map<number, { attendance: AttendanceStatus; onSitePayment?: OnSitePaymentStatus }> = new Map()
   ): string {
     if (!participants || participants.length === 0) {
       return '👥 Участники: пока никого нет'
@@ -238,6 +251,11 @@ export class MessageFormatter {
       const username = participant.username ? `@${participant.username}` : ''
       const statusIcon = this.getParticipationStatusIcon(participant.status)
       const statusText = this.getParticipationStatusTextForAdmin(participant.status)
+
+      // Получаем данные о посещении из карты
+      const attendanceInfo = attendanceData.get(participant.userId) || {
+        attendance: AttendanceStatus.UNKNOWN,
+      }
 
       participantsText += `${index + 1}. ${name}${lastName}\n`
       participantsText += `   ${statusIcon} ${statusText}\n`
@@ -260,7 +278,41 @@ export class MessageFormatter {
     return participantsText
   }
 
-  // Функция для создания кнопок переключения опций просмотра участников
+  // Функция для создания кнопок управления участниками
+  static createParticipantManagementButtons(eventId: number, participants: any[], attendanceData: Map<number, { attendance: AttendanceStatus; onSitePayment?: OnSitePaymentStatus }> = new Map()) {
+    const buttons: any[] = []
+
+    participants.forEach((participant, index) => {
+      const attendanceInfo = attendanceData.get(participant.userId) || {
+        attendance: AttendanceStatus.UNKNOWN,
+      }
+
+      const attendanceIcon = this.getAttendanceIcon(attendanceInfo.attendance)
+      const name = participant.firstName || 'Без имени'
+
+      const attendanceButton = Markup.button.callback(`${index + 1}. ${name} ${attendanceIcon}`, `toggle_attendance_${eventId}_${participant.userId}`)
+
+      // Проверяем, выбрал ли участник оплату на месте
+      const isOnSitePayment = participant.status === 'payment_on_site' || participant.status !== 'payment_confirmed'
+
+      if (isOnSitePayment) {
+        const paymentIcon = attendanceInfo.onSitePayment === OnSitePaymentStatus.PAID ? '💰' : '💸'
+        const paymentText = attendanceInfo.onSitePayment === OnSitePaymentStatus.PAID ? 'Оплачено' : 'Не оплачено'
+
+        const paymentButton = Markup.button.callback(`${paymentIcon} ${paymentText}`, `toggle_onsite_payment_${eventId}_${participant.userId}`)
+
+        // Размещаем обе кнопки в одном ряду
+        buttons.push([attendanceButton, paymentButton])
+      } else {
+        // Только кнопка посещения
+        buttons.push([attendanceButton])
+      }
+    })
+
+    return buttons
+  }
+
+  // Обновленная функция для создания кнопок просмотра участников с управлением
   static createParticipantViewToggleButtons(
     eventId: number,
     currentOptions: {
@@ -272,5 +324,32 @@ export class MessageFormatter {
     const { showRegistrationDate = false, showPaymentDate = false, showTelegramContact = false } = currentOptions
 
     return [[Markup.button.callback(`${showRegistrationDate ? '✅' : '☐'} Дата регистрации`, `toggle_reg_date_${eventId}`), Markup.button.callback(`${showPaymentDate ? '✅' : '☐'} Дата оплаты`, `toggle_pay_date_${eventId}`)], [Markup.button.callback(`${showTelegramContact ? '✅' : '☐'} Telegram контакт`, `toggle_telegram_${eventId}`)], [Markup.button.callback('🔄 Обновить список', `refresh_participants_${eventId}`)], [Markup.button.callback('◀️ Назад к редактированию', `edit_event_${eventId}`)]]
+  }
+
+  // Функция для получения иконки статуса посещения
+  static getAttendanceIcon(status: AttendanceStatus): string {
+    switch (status) {
+      case AttendanceStatus.ATTENDED:
+        return '✅'
+      case AttendanceStatus.NOT_ATTENDED:
+        return '❌'
+      case AttendanceStatus.UNKNOWN:
+      default:
+        return '❓'
+    }
+  }
+
+  // Функция для получения следующего статуса посещения (циклический переход)
+  static getNextAttendanceStatus(current: AttendanceStatus): AttendanceStatus {
+    switch (current) {
+      case AttendanceStatus.UNKNOWN:
+        return AttendanceStatus.ATTENDED
+      case AttendanceStatus.ATTENDED:
+        return AttendanceStatus.NOT_ATTENDED
+      case AttendanceStatus.NOT_ATTENDED:
+        return AttendanceStatus.UNKNOWN
+      default:
+        return AttendanceStatus.ATTENDED
+    }
   }
 }
