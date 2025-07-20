@@ -16,6 +16,8 @@ import { MESSAGES, BUTTONS } from '../constants/messages'
 import { isAdmin } from '../utils/auth.utils'
 import { ADMINS, PAYMENT_ADMIN_ID } from '../config'
 import { safeEditMessage } from '../utils/message-utils'
+import { DateFormatter } from '../utils/formatters'
+import { MessageFormatter } from '../utils/formatters'
 
 export class TelegramBot {
   private readonly bot: Telegraf<BotContext>
@@ -319,6 +321,32 @@ export class TelegramBot {
     this.bot.action('help', ctx => {
       return ctx.reply(MESSAGES.HELP_TEXT)
     })
+
+    // Действия с участниками в редактировании событий
+    this.bot.action(/^view_participants_(\d+)$/, ctx => {
+      const eventId = parseInt(ctx.match[1])
+      return this.showEventParticipants(ctx, eventId)
+    })
+
+    this.bot.action(/^toggle_reg_date_(\d+)$/, ctx => {
+      const eventId = parseInt(ctx.match[1])
+      return this.toggleParticipantOption(ctx, eventId, 'showRegistrationDate')
+    })
+
+    this.bot.action(/^toggle_pay_date_(\d+)$/, ctx => {
+      const eventId = parseInt(ctx.match[1])
+      return this.toggleParticipantOption(ctx, eventId, 'showPaymentDate')
+    })
+
+    this.bot.action(/^toggle_telegram_(\d+)$/, ctx => {
+      const eventId = parseInt(ctx.match[1])
+      return this.toggleParticipantOption(ctx, eventId, 'showTelegramContact')
+    })
+
+    this.bot.action(/^refresh_participants_(\d+)$/, ctx => {
+      const eventId = parseInt(ctx.match[1])
+      return this.showEventParticipants(ctx, eventId)
+    })
   }
 
   private async handleJoinEvent(ctx: BotContext, eventId: number): Promise<void> {
@@ -503,6 +531,68 @@ export class TelegramBot {
   private async handleRemindLater(ctx: BotContext, eventId: number): Promise<void> {
     await ctx.answerCbQuery('Мы напомним вам об оплате позже')
     await ctx.editMessageText('Мы напомним вам об оплате позже. Вы можете вернуться к списку встреч.', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к списку встреч', 'new_events')]]))
+  }
+
+  // Методы для работы с участниками
+  private async showEventParticipants(ctx: BotContext, eventId: number): Promise<void> {
+    if (!isAdmin(ctx.from?.id)) {
+      await ctx.answerCbQuery('У вас нет прав для этого действия')
+      return
+    }
+
+    try {
+      const event = await this.eventService.getEventDetails(eventId)
+      if (!event) {
+        await ctx.answerCbQuery('Событие не найдено')
+        return
+      }
+
+      // Получаем настройки отображения из сессии или используем по умолчанию
+      const session = ctx.session as any
+      const participantViewOptions = session.participantViewOptions || {
+        showRegistrationDate: false,
+        showPaymentDate: false,
+        showTelegramContact: false,
+      }
+
+      const participantsText = MessageFormatter.formatParticipantsDetailed(event.participants, participantViewOptions)
+
+      const buttons = MessageFormatter.createParticipantViewToggleButtons(eventId, participantViewOptions)
+
+      await ctx.answerCbQuery()
+      await ctx.editMessageText(`📅 ${event.title}\n\n${participantsText}`, Markup.inlineKeyboard(buttons))
+    } catch (error) {
+      console.error('Error showing event participants:', error)
+      await ctx.answerCbQuery('Ошибка при загрузке участников')
+    }
+  }
+
+  private async toggleParticipantOption(ctx: BotContext, eventId: number, optionName: string): Promise<void> {
+    if (!isAdmin(ctx.from?.id)) {
+      await ctx.answerCbQuery('У вас нет прав для этого действия')
+      return
+    }
+
+    try {
+      // Инициализируем или получаем настройки отображения из сессии
+      const session = ctx.session as any
+      if (!session.participantViewOptions) {
+        session.participantViewOptions = {
+          showRegistrationDate: false,
+          showPaymentDate: false,
+          showTelegramContact: false,
+        }
+      }
+
+      // Переключаем опцию
+      session.participantViewOptions[optionName] = !session.participantViewOptions[optionName]
+
+      // Обновляем отображение
+      await this.showEventParticipants(ctx, eventId)
+    } catch (error) {
+      console.error('Error toggling participant option:', error)
+      await ctx.answerCbQuery('Ошибка при переключении опции')
+    }
   }
 
   private log(message: string, data?: any): void {

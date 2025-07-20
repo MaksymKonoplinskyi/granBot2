@@ -366,7 +366,7 @@ export const createEditEventScene = (eventService: EventService) => {
 
 async function showEventEditMenu(ctx: BotContext, eventService: EventService, eventId: number) {
   try {
-    const event = await eventService.getEventById(eventId)
+    const event = await eventService.getEventDetails(eventId)
     if (!event) {
       await ctx.reply('Событие не найдено')
       return ctx.scene.leave()
@@ -375,9 +375,9 @@ async function showEventEditMenu(ctx: BotContext, eventService: EventService, ev
     const imageStatus = event.imageFileId ? '🖼 Загружено' : '📷 Отсутствует'
     const scheduledStatus = event.scheduledPublishDate ? `⏰ ${DateFormatter.formatDate(event.scheduledPublishDate)}` : '❌ Не задана'
 
-    const eventText = `📝 Редактирование встречи\n\n` + `📅 Название: ${event.title}\n` + `🕒 Начало: ${DateFormatter.formatDate(event.startDate)}\n` + `🕕 Окончание: ${DateFormatter.formatDate(event.endDate)}\n` + `📄 Описание: ${event.description}\n` + `🖼 Изображение: ${imageStatus}\n` + `💰 Стоимость: ${event.fullPaymentAmount} грн\n` + `💳 Предоплата: ${event.advancePaymentAmount ? `${event.advancePaymentAmount} грн` : 'Не установлена'}\n` + `📊 Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` + `⏰ Отложенная публикация: ${scheduledStatus}\n\n` + `Выберите поле для редактирования:`
+    const eventText = `📝 Редактирование встречи\n\n` + `📅 Название: ${event.title}\n` + `🕒 Начало: ${DateFormatter.formatDate(event.startDate)}\n` + `🕕 Окончание: ${DateFormatter.formatDate(event.endDate)}\n` + `📄 Описание: ${event.description}\n` + `🖼 Изображение: ${imageStatus}\n` + `💰 Стоимость: ${event.fullPaymentAmount} грн\n` + `💳 Предоплата: ${event.advancePaymentAmount ? `${event.advancePaymentAmount} грн` : 'Не установлена'}\n` + `👥 Участников: ${event.participantCount}\n` + `📊 Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` + `⏰ Отложенная публикация: ${scheduledStatus}\n\n` + `Выберите поле для редактирования:`
 
-    const buttons = [[Markup.button.callback('✏️ Название', 'edit_field_title')], [Markup.button.callback('🕒 Дата начала', 'edit_field_start_date')], [Markup.button.callback('🕕 Дата окончания', 'edit_field_end_date')], [Markup.button.callback('📄 Описание', 'edit_field_description')], [Markup.button.callback('🖼 Изображение', 'edit_field_image')], [Markup.button.callback('💰 Стоимость', 'edit_field_full_payment')], [Markup.button.callback('💳 Предоплата', 'edit_field_advance_payment')]]
+    const buttons = [[Markup.button.callback('✏️ Название', 'edit_field_title')], [Markup.button.callback('🕒 Дата начала', 'edit_field_start_date')], [Markup.button.callback('🕕 Дата окончания', 'edit_field_end_date')], [Markup.button.callback('📄 Описание', 'edit_field_description')], [Markup.button.callback('🖼 Изображение', 'edit_field_image')], [Markup.button.callback('💰 Стоимость', 'edit_field_full_payment')], [Markup.button.callback('💳 Предоплата', 'edit_field_advance_payment')], [Markup.button.callback('👥 Список участников', `view_participants_${eventId}`)]]
 
     // Добавляем кнопки публикации только если встреча не опубликована
     if (!event.isPublished) {
@@ -389,28 +389,10 @@ async function showEventEditMenu(ctx: BotContext, eventService: EventService, ev
 
     buttons.push([Markup.button.callback('◀️ К списку встреч', 'back_to_events')])
 
-    // Если есть изображение, показываем его
-    if (event.imageFileId) {
-      try {
-        await ctx.replyWithPhoto(event.imageFileId, {
-          caption: eventText,
-          reply_markup: Markup.inlineKeyboard(buttons).reply_markup,
-        })
-        return
-      } catch (error) {
-        console.error('Error sending photo:', error)
-        // Если ошибка с изображением, отправляем обычное текстовое сообщение
-      }
-    }
-
-    // Отправляем обычное текстовое сообщение
-    if (ctx.callbackQuery) {
-      await ctx.editMessageText(eventText, Markup.inlineKeyboard(buttons))
-    } else {
-      await ctx.reply(eventText, Markup.inlineKeyboard(buttons))
-    }
+    await ctx.editMessageText(eventText, Markup.inlineKeyboard(buttons))
   } catch (error) {
     console.error('Error showing event edit menu:', error)
-    await ctx.reply(MESSAGES.ERROR_GENERAL)
+    await ctx.reply('Ошибка при загрузке данных встречи')
+    return ctx.scene.leave()
   }
 }

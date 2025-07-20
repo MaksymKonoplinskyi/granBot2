@@ -1,6 +1,7 @@
 import { EventDetailsDto, EventListDto } from '../dto/event.dto'
 import { ParticipationStatus } from '../entities/EventParticipant'
 import { MESSAGES } from '../constants/messages'
+import { Markup } from 'telegraf'
 
 export class DateFormatter {
   static formatDate(date: Date | null): string {
@@ -212,5 +213,64 @@ export class MessageFormatter {
     const participantsList = this.formatParticipantsForAdmin(event.participants)
 
     return basicInfo + participantsList
+  }
+
+  // Функция для форматирования детального списка участников с переключателями
+  static formatParticipantsDetailed(
+    participants: any[],
+    options: {
+      showRegistrationDate?: boolean
+      showPaymentDate?: boolean
+      showTelegramContact?: boolean
+    } = {}
+  ): string {
+    if (!participants || participants.length === 0) {
+      return '👥 Участники: пока никого нет'
+    }
+
+    const { showRegistrationDate = false, showPaymentDate = false, showTelegramContact = false } = options
+
+    let participantsText = `👥 Список участников (${participants.length}):\n\n`
+
+    participants.forEach((participant, index) => {
+      const name = participant.firstName || 'Без имени'
+      const lastName = participant.lastName ? ` ${participant.lastName}` : ''
+      const username = participant.username ? `@${participant.username}` : ''
+      const statusIcon = this.getParticipationStatusIcon(participant.status)
+      const statusText = this.getParticipationStatusTextForAdmin(participant.status)
+
+      participantsText += `${index + 1}. ${name}${lastName}\n`
+      participantsText += `   ${statusIcon} ${statusText}\n`
+
+      if (showTelegramContact && username) {
+        participantsText += `   📱 ${username}\n`
+      }
+
+      if (showRegistrationDate && participant.joinedAt) {
+        participantsText += `   📅 Регистрация: ${DateFormatter.formatDate(new Date(participant.joinedAt))}\n`
+      }
+
+      if (showPaymentDate && participant.updatedAt && participant.status === 'payment_confirmed') {
+        participantsText += `   💰 Оплата: ${DateFormatter.formatDate(new Date(participant.updatedAt))}\n`
+      }
+
+      participantsText += '\n'
+    })
+
+    return participantsText
+  }
+
+  // Функция для создания кнопок переключения опций просмотра участников
+  static createParticipantViewToggleButtons(
+    eventId: number,
+    currentOptions: {
+      showRegistrationDate?: boolean
+      showPaymentDate?: boolean
+      showTelegramContact?: boolean
+    } = {}
+  ) {
+    const { showRegistrationDate = false, showPaymentDate = false, showTelegramContact = false } = currentOptions
+
+    return [[Markup.button.callback(`${showRegistrationDate ? '✅' : '☐'} Дата регистрации`, `toggle_reg_date_${eventId}`), Markup.button.callback(`${showPaymentDate ? '✅' : '☐'} Дата оплаты`, `toggle_pay_date_${eventId}`)], [Markup.button.callback(`${showTelegramContact ? '✅' : '☐'} Telegram контакт`, `toggle_telegram_${eventId}`)], [Markup.button.callback('🔄 Обновить список', `refresh_participants_${eventId}`)], [Markup.button.callback('◀️ Назад к редактированию', `edit_event_${eventId}`)]]
   }
 }
