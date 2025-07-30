@@ -6,7 +6,7 @@ import { isAdmin } from '../utils/auth.utils'
 import { DateFormatter } from '../utils/formatters'
 
 interface CreateEventSceneState {
-  step: 'title' | 'start_date' | 'end_date' | 'description' | 'image' | 'full_payment' | 'advance_payment'
+  step: 'title' | 'start_date' | 'end_date' | 'description' | 'image' | 'full_payment' | 'advance_payment' | 'what_to_bring' | 'how_to_get_there'
   title?: string
   startDate?: Date
   endDate?: Date
@@ -16,6 +16,8 @@ interface CreateEventSceneState {
   fullPaymentAmount?: number
   advancePaymentAmount?: number | null
   allowOnSitePayment?: boolean
+  whatToBring?: string | null
+  howToGetThere?: string | null
 }
 
 // Вспомогательная функция для парсинга даты в формате DD.MM.YYYY, HH:mm
@@ -148,7 +150,20 @@ export const createEventScene = (eventService: EventService) => {
 
           state.advancePaymentAmount = advancePayment === 0 ? null : advancePayment
           state.allowOnSitePayment = true // По умолчанию разрешаем оплату на месте
+          state.step = 'what_to_bring'
 
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n${state.advancePaymentAmount ? `Предоплата: ${state.advancePaymentAmount} грн\n` : ''}\n\nШаг 8/9 (опционально): Что взять с собой\nВведите информацию о том, что участникам нужно взять с собой, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_what_to_bring')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          break
+
+        case 'what_to_bring':
+          state.whatToBring = ctx.message.text
+          state.step = 'how_to_get_there'
+
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n${state.advancePaymentAmount ? `Предоплата: ${state.advancePaymentAmount} грн\n` : ''}${state.whatToBring ? `Что взять: ${state.whatToBring}\n` : ''}\n\nШаг 9/9 (опционально): Как добраться\nВведите информацию о том, как добраться до места встречи, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_how_to_get_there')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          break
+
+        case 'how_to_get_there':
+          state.howToGetThere = ctx.message.text
           await createEvent(ctx, state, eventService)
           break
       }
@@ -173,6 +188,24 @@ export const createEventScene = (eventService: EventService) => {
     const state = (ctx.session as any)?.createEventState as CreateEventSceneState
     state.advancePaymentAmount = null
     state.allowOnSitePayment = true
+    state.step = 'what_to_bring'
+
+    await ctx.editMessageText(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n\nШаг 8/9 (опционально): Что взять с собой\nВведите информацию о том, что участникам нужно взять с собой, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_what_to_bring')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+  })
+
+  scene.action('skip_what_to_bring', async ctx => {
+    await ctx.answerCbQuery()
+    const state = (ctx.session as any)?.createEventState as CreateEventSceneState
+    state.whatToBring = null
+    state.step = 'how_to_get_there'
+
+    await ctx.editMessageText(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n${state.advancePaymentAmount ? `Предоплата: ${state.advancePaymentAmount} грн\n` : ''}\n\nШаг 9/9 (опционально): Как добраться\nВведите информацию о том, как добраться до места встречи, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_how_to_get_there')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+  })
+
+  scene.action('skip_how_to_get_there', async ctx => {
+    await ctx.answerCbQuery()
+    const state = (ctx.session as any)?.createEventState as CreateEventSceneState
+    state.howToGetThere = null
 
     await createEvent(ctx, state, eventService)
   })
@@ -200,6 +233,8 @@ async function createEvent(ctx: BotContext, state: CreateEventSceneState, eventS
       location: null, // Можно добавить в будущем
       imageFileId: state.imageFileId,
       imageFileName: state.imageFileName,
+      whatToBring: state.whatToBring,
+      howToGetThere: state.howToGetThere,
       isPublished: false,
       isCancelled: false,
     }

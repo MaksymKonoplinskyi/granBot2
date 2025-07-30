@@ -48,6 +48,12 @@ export class Event {
   @Column({ type: 'datetime', nullable: true })
   scheduledPublishDate!: Date | null
 
+  @Column({ type: 'text', nullable: true })
+  whatToBring?: string
+
+  @Column({ type: 'text', nullable: true })
+  howToGetThere?: string
+
   @OneToMany(() => EventParticipant, participant => participant.event)
   participants!: EventParticipant[]
 

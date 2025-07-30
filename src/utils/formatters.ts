@@ -115,6 +115,8 @@ export class MessageFormatter {
         return MESSAGES.STATUS_PAYMENT_CONFIRMATION
       case ParticipationStatus.PAYMENT_ON_SITE:
         return MESSAGES.STATUS_PAYMENT_ON_SITE
+      case ParticipationStatus.PAYMENT_NOT_CHOSEN:
+        return '⏳ Выбор способа оплаты'
       default:
         return MESSAGES.STATUS_PAYMENT_REQUIRED
     }
@@ -189,6 +191,8 @@ export class MessageFormatter {
         return '🏛️'
       case ParticipationStatus.PENDING_PAYMENT:
         return '⚠️'
+      case ParticipationStatus.PAYMENT_NOT_CHOSEN:
+        return '⏳'
       case ParticipationStatus.CANCELLED_NO_PAYMENT:
         return '❌'
       case ParticipationStatus.PENDING_REFUND:
@@ -209,6 +213,8 @@ export class MessageFormatter {
         return 'Оплата на месте'
       case ParticipationStatus.PENDING_PAYMENT:
         return 'Ожидает оплаты'
+      case ParticipationStatus.PAYMENT_NOT_CHOSEN:
+        return 'Выбор способа оплаты'
       case ParticipationStatus.CANCELLED_NO_PAYMENT:
         return 'Отменено без оплаты'
       case ParticipationStatus.PENDING_REFUND:

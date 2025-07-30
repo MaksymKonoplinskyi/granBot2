@@ -18,6 +18,7 @@ import { ADMINS, PAYMENT_ADMIN_ID } from '../config'
 import { safeEditMessage } from '../utils/message-utils'
 import { DateFormatter } from '../utils/formatters'
 import { MessageFormatter } from '../utils/formatters'
+import { ParticipationStatus } from '../entities/EventParticipant'
 
 // Добавим enum для статуса посещения
 export enum AttendanceStatus {
@@ -58,9 +59,9 @@ export class TelegramBot {
     this.clubInfoService = new ClubInfoService(clubInfoRepository)
     this.userRepository = userRepository
 
-    this.eventController = new EventController(this.eventService)
-    this.adminController = new AdminController(this.eventService, this.paymentDetailsService, this.clubInfoService)
     this.paymentDetailsController = new PaymentDetailsController(this.paymentDetailsService)
+    this.eventController = new EventController(this.eventService, this.paymentDetailsController)
+    this.adminController = new AdminController(this.eventService, this.paymentDetailsService, this.clubInfoService)
     this.clubInfoController = new ClubInfoController(this.clubInfoService)
 
     this.setupErrorHandling()
@@ -230,7 +231,7 @@ export class TelegramBot {
     this.bot.action(/^payment_(onsite|advance|full)_(\d+)$/, ctx => {
       const paymentType = ctx.match[1]
       const eventId = parseInt(ctx.match[2])
-      return this.eventController.joinEvent(ctx, eventId, paymentType)
+      return this.eventController.updatePaymentChoice(ctx, eventId, paymentType)
     })
 
     // Переключение между типами событий
@@ -379,6 +380,22 @@ export class TelegramBot {
       const userId = parseInt(ctx.match[2])
       return this.toggleOnSitePaymentStatus(ctx, eventId, userId)
     })
+
+    // Обработчики для отмены участия и дополнительной информации
+    this.bot.action(/^cancel_participation_(\d+)$/, ctx => {
+      const eventId = parseInt(ctx.match[1])
+      return this.handleCancelParticipation(ctx, eventId)
+    })
+
+    this.bot.action(/^what_to_bring_(\d+)$/, ctx => {
+      const eventId = parseInt(ctx.match[1])
+      return this.showWhatToBring(ctx, eventId)
+    })
+
+    this.bot.action(/^how_to_get_there_(\d+)$/, ctx => {
+      const eventId = parseInt(ctx.match[1])
+      return this.showHowToGetThere(ctx, eventId)
+    })
   }
 
   private async handleJoinEvent(ctx: BotContext, eventId: number): Promise<void> {
@@ -389,6 +406,16 @@ export class TelegramBot {
         await ctx.answerCbQuery(MESSAGES.ERROR_ALREADY_PARTICIPANT)
         return
       }
+
+      // Сразу регистрируем пользователя с временным статусом PAYMENT_NOT_CHOSEN
+      const userData = {
+        username: ctx.from!.username,
+        firstName: ctx.from!.first_name,
+        lastName: ctx.from!.last_name,
+      }
+
+      await this.eventService.joinEvent(eventId, ctx.from!.id, ParticipationStatus.PAYMENT_NOT_CHOSEN, userData)
+      await ctx.answerCbQuery('Вы зарегистрированы на встречу!')
 
       // Показываем варианты оплаты
       const now = new Date()
@@ -406,13 +433,58 @@ export class TelegramBot {
         buttons.push([Markup.button.callback(`${BUTTONS.PAY_FULL} (${event.fullPaymentAmount} грн)`, `payment_full_${event.id}`)])
       }
 
-      buttons.push([Markup.button.callback('❌ Отменить', `event_details_${event.id}`)])
+      buttons.push([Markup.button.callback('❌ Отменить участие', `cancel_participation_${event.id}`)])
 
       const paymentText = `Выберите вариант оплаты для встречи "${event.title}":`
 
       await safeEditMessage(ctx, paymentText, Markup.inlineKeyboard(buttons))
     } catch (error) {
       console.error('Error handling join event:', error)
+      await ctx.answerCbQuery(MESSAGES.ERROR_GENERAL)
+    }
+  }
+
+  private async handleCancelParticipation(ctx: BotContext, eventId: number): Promise<void> {
+    try {
+      await this.eventService.updateParticipationStatus(eventId, ctx.from!.id, ParticipationStatus.CANCELLED_NO_PAYMENT)
+      await ctx.answerCbQuery('Участие отменено')
+      await ctx.editMessageText('❌ Ваше участие в встрече отменено.', Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]))
+    } catch (error) {
+      console.error('Error canceling participation:', error)
+      await ctx.answerCbQuery(MESSAGES.ERROR_GENERAL)
+    }
+  }
+
+  private async showWhatToBring(ctx: BotContext, eventId: number): Promise<void> {
+    try {
+      const event = await this.eventService.getEventDetails(eventId, ctx.from?.id)
+
+      if (!event.whatToBring) {
+        await ctx.answerCbQuery('Информация не указана')
+        return
+      }
+
+      await ctx.answerCbQuery()
+      await ctx.editMessageText(`🎒 Что взять с собой:\n\n${event.whatToBring}`, Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад', 'main_menu')]]))
+    } catch (error) {
+      console.error('Error showing what to bring:', error)
+      await ctx.answerCbQuery(MESSAGES.ERROR_GENERAL)
+    }
+  }
+
+  private async showHowToGetThere(ctx: BotContext, eventId: number): Promise<void> {
+    try {
+      const event = await this.eventService.getEventDetails(eventId, ctx.from?.id)
+
+      if (!event.howToGetThere) {
+        await ctx.answerCbQuery('Информация не указана')
+        return
+      }
+
+      await ctx.answerCbQuery()
+      await ctx.editMessageText(`🗺️ Как добраться:\n\n${event.howToGetThere}`, Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад', 'main_menu')]]))
+    } catch (error) {
+      console.error('Error showing how to get there:', error)
       await ctx.answerCbQuery(MESSAGES.ERROR_GENERAL)
     }
   }

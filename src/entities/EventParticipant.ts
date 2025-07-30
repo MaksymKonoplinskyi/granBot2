@@ -3,6 +3,7 @@ import { Event } from './Event'
 import { User } from './User'
 
 export enum ParticipationStatus {
+  PAYMENT_NOT_CHOSEN = 'payment_not_chosen', // Временный статус после регистрации, до выбора способа оплаты
   PAYMENT_ON_SITE = 'payment_on_site', // Пользователь выбрал оплату на месте
   PENDING_PAYMENT = 'pending_payment', // Ожидает оплаты от пользователя (пользователь еще не оплатил)
   PAYMENT_CONFIRMATION = 'payment_confirmation', // Подтверждение оплаты (Пользователь нажал на кнопку что он оплатил и мы ожидаем подтверждения админа)
@@ -24,7 +25,7 @@ export class EventParticipant {
 
   @Column({
     type: 'text',
-    default: ParticipationStatus.PENDING_PAYMENT,
+    default: ParticipationStatus.PAYMENT_NOT_CHOSEN,
   })
   status!: ParticipationStatus
 

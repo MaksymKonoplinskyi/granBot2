@@ -71,6 +71,8 @@ export class EventService {
       imageFileId: event.imageFileId,
       imageFileName: event.imageFileName,
       scheduledPublishDate: event.scheduledPublishDate,
+      whatToBring: event.whatToBring,
+      howToGetThere: event.howToGetThere,
       isPublished: event.isPublished,
       isCancelled: event.isCancelled,
       participantCount: event.participants.length,

@@ -64,6 +64,8 @@ export class EventDetailsDto extends EventWithIdDto {
   imageFileId?: string | null
   imageFileName?: string | null
   scheduledPublishDate?: Date | null
+  whatToBring?: string | null
+  howToGetThere?: string | null
   participants!: EventParticipantDto[]
 }
 
