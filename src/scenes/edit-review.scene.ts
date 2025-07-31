@@ -7,12 +7,13 @@ import { ReviewFormatter } from '../utils/review-formatters'
 import { replaceMessage } from '../utils/message-utils'
 
 interface EditReviewSceneState {
-  step: 'selection' | 'edit_type' | 'edit_content' | 'edit_visibility' | 'edit_anonymity'
+  step: 'selection' | 'edit_type' | 'edit_content' | 'edit_visibility' | 'edit_anonymity' | 'delete_confirmation'
   selectedReviewId?: number
   userReviews?: any[]
   editField?: 'content' | 'visibility'
   newStatus?: ReviewStatus
   newIsAnonymous?: boolean
+  reviewToDelete?: any
 }
 
 export const createEditReviewScene = (reviewService: ReviewService) => {
@@ -107,6 +108,55 @@ export const createEditReviewScene = (reviewService: ReviewService) => {
     await saveVisibilityChanges(ctx, reviewService)
   })
 
+  // Удаление отзыва
+  scene.action('delete_review', async ctx => {
+    await ctx.answerCbQuery()
+    const state = ctx.scene.state as EditReviewSceneState
+
+    // Находим отзыв в списке пользователя
+    const reviewToDelete = state.userReviews?.find(review => review.id === state.selectedReviewId)
+    if (!reviewToDelete) {
+      await ctx.reply('Отзыв не найден')
+      return
+    }
+
+    state.reviewToDelete = reviewToDelete
+    state.step = 'delete_confirmation'
+
+    await showDeleteConfirmation(ctx, reviewToDelete)
+  })
+
+  // Подтверждение удаления отзыва
+  scene.action('confirm_delete', async ctx => {
+    await ctx.answerCbQuery()
+    const state = ctx.scene.state as EditReviewSceneState
+
+    try {
+      if (!state.reviewToDelete) {
+        await ctx.reply('Ошибка: отзыв для удаления не найден')
+        return
+      }
+
+      await reviewService.deleteReview(state.reviewToDelete.id, ctx.from!.id)
+
+      await replaceMessage(ctx, '✅ Отзыв успешно удален!', Markup.inlineKeyboard([[Markup.button.callback('◀️ К отзывам', 'reviews')]]))
+
+      return ctx.scene.leave()
+    } catch (error: any) {
+      console.error('Error deleting review:', error)
+      await ctx.reply(error.message || 'Ошибка при удалении отзыва')
+    }
+  })
+
+  // Отмена удаления отзыва
+  scene.action('cancel_delete', async ctx => {
+    await ctx.answerCbQuery()
+    const state = ctx.scene.state as EditReviewSceneState
+    state.step = 'edit_type'
+
+    await showEditTypeSelection(ctx)
+  })
+
   // Редактирование текста
   scene.on('text', async ctx => {
     const state = ctx.scene.state as EditReviewSceneState
@@ -192,7 +242,7 @@ async function showReviewSelection(ctx: BotContext, userReviews: any[]): Promise
 async function showEditTypeSelection(ctx: BotContext): Promise<void> {
   const messageText = 'Что вы хотите изменить?'
 
-  const buttons = [[Markup.button.callback('📝 Текст отзыва', 'edit_content')], [Markup.button.callback('👁️ Видимость отзыва', 'edit_visibility')], [Markup.button.callback('◀️ Назад', 'back_to_selection')], [Markup.button.callback('❌ Отмена', 'cancel_edit')]]
+  const buttons = [[Markup.button.callback('📝 Текст отзыва', 'edit_content')], [Markup.button.callback('👁️ Видимость отзыва', 'edit_visibility')], [Markup.button.callback('🗑️ Удалить отзыв', 'delete_review')], [Markup.button.callback('◀️ Назад', 'back_to_selection')], [Markup.button.callback('❌ Отмена', 'cancel_edit')]]
 
   await replaceMessage(ctx, messageText, Markup.inlineKeyboard(buttons))
 }
@@ -269,4 +319,21 @@ async function saveVisibilityChanges(ctx: BotContext, reviewService: ReviewServi
     console.error('Error saving visibility changes:', error)
     await ctx.reply(error.message || 'Ошибка при обновлении настроек отзыва')
   }
+}
+
+async function showDeleteConfirmation(ctx: BotContext, reviewToDelete: any): Promise<void> {
+  const shortContent = reviewToDelete.content.length > 100 ? reviewToDelete.content.substring(0, 100) + '...' : reviewToDelete.content
+
+  let reviewInfo = ''
+  if (reviewToDelete.type === 'club') {
+    reviewInfo = 'О клубе'
+  } else if (reviewToDelete.event) {
+    reviewInfo = `О встрече "${reviewToDelete.event.title}"`
+  }
+
+  const messageText = `⚠️ Вы уверены, что хотите удалить отзыв?\n\n${reviewInfo}:\n"${shortContent}"\n\n❗ Это действие нельзя отменить!`
+
+  const buttons = [[Markup.button.callback('✅ Да, удалить', 'confirm_delete'), Markup.button.callback('❌ Отмена', 'cancel_delete')]]
+
+  await replaceMessage(ctx, messageText, Markup.inlineKeyboard(buttons))
 }
