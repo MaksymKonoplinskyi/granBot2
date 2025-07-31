@@ -6,7 +6,7 @@ import { isAdmin } from '../utils/auth.utils'
 import { DateFormatter } from '../utils/formatters'
 
 interface CreateEventSceneState {
-  step: 'title' | 'start_date' | 'end_date' | 'description' | 'image' | 'full_payment' | 'advance_payment' | 'what_to_bring' | 'how_to_get_there'
+  step: 'title' | 'start_date' | 'end_date' | 'description' | 'image' | 'full_payment' | 'advance_payment' | 'advance_payment_deadline' | 'what_to_bring' | 'how_to_get_there'
   title?: string
   startDate?: Date
   endDate?: Date
@@ -15,6 +15,7 @@ interface CreateEventSceneState {
   imageFileName?: string | null
   fullPaymentAmount?: number
   advancePaymentAmount?: number | null
+  advancePaymentDeadline?: Date | null
   allowOnSitePayment?: boolean
   whatToBring?: string | null
   howToGetThere?: string | null
@@ -46,7 +47,7 @@ export const createEventScene = (eventService: EventService) => {
       step: 'title',
     }
 
-    await ctx.reply('Создание новой встречи\n\nШаг 1/7: Введите название встречи:', Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+    await ctx.reply('Создание новой встречи\n\nШаг 1/8: Введите название встречи:', Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
   })
 
   // Обработка изображений
@@ -69,7 +70,7 @@ export const createEventScene = (eventService: EventService) => {
       state.imageFileName = `event_image_${Date.now()}.jpg`
       state.step = 'full_payment'
 
-      await ctx.reply(`✅ Изображение сохранено!\n\nНазвание: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n🖼 Изображение: загружено\n\nШаг 6/7: Введите стоимость участия в гривнах (только число):\nПример: 200`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+      await ctx.reply(`✅ Изображение сохранено!\n\nНазвание: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n🖼 Изображение: загружено\n\nШаг 6/8: Введите стоимость участия в гривнах (только число):\nПример: 200`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
     } catch (error) {
       console.error('Error handling photo:', error)
       await ctx.reply('Ошибка при загрузке изображения. Попробуйте еще раз или пропустите этот шаг.')
@@ -89,7 +90,7 @@ export const createEventScene = (eventService: EventService) => {
         case 'title':
           state.title = ctx.message.text
           state.step = 'start_date'
-          await ctx.reply(`Название: ${state.title}\n\nШаг 2/7: Введите дату и время начала встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 25.07.2025, 11:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\n\nШаг 2/8: Введите дату и время начала встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 25.07.2025, 11:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'start_date':
@@ -100,7 +101,7 @@ export const createEventScene = (eventService: EventService) => {
           }
           state.startDate = startDate
           state.step = 'end_date'
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate)}\n\nШаг 3/7: Введите дату и время окончания встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 26.07.2025, 22:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate)}\n\nШаг 3/8: Введите дату и время окончания встречи в формате ДД.ММ.ГГГГ, ЧЧ:ММ\nПример: 26.07.2025, 22:00`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'end_date':
@@ -115,19 +116,19 @@ export const createEventScene = (eventService: EventService) => {
           }
           state.endDate = endDate
           state.step = 'description'
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate)}\n\nШаг 4/7: Введите описание встречи:`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate)}\n\nШаг 4/8: Введите описание встречи:`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'description':
           state.description = ctx.message.text
           state.step = 'image'
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n\nШаг 5/7: Отправьте изображение для встречи или нажмите "Пропустить"`, Markup.inlineKeyboard([[Markup.button.callback('⏭ Пропустить', 'skip_image')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n\nШаг 5/8: Отправьте изображение для встречи или нажмите "Пропустить"`, Markup.inlineKeyboard([[Markup.button.callback('⏭ Пропустить', 'skip_image')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'image':
           // Обработка изображения - пока просто пропускаем
           state.step = 'full_payment'
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n\nШаг 6/7: Введите стоимость участия в гривнах (только число):\nПример: 200`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n\nШаг 6/8: Введите стоимость участия в гривнах (только число):\nПример: 200`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'full_payment':
@@ -138,7 +139,7 @@ export const createEventScene = (eventService: EventService) => {
           }
           state.fullPaymentAmount = fullPayment
           state.step = 'advance_payment'
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n\nШаг 7/7: Предоплата заранее\nВведите стоимость при оплате заранее (грн) или 0 если предоплата не нужна:`, Markup.inlineKeyboard([[Markup.button.callback('0 - без предоплаты', 'no_advance_payment')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n\nШаг 7/8: Предоплата заранее\nВведите стоимость при оплате заранее (грн) или 0 если предоплата не нужна:`, Markup.inlineKeyboard([[Markup.button.callback('0 - без предоплаты', 'no_advance_payment')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'advance_payment':
@@ -150,16 +151,51 @@ export const createEventScene = (eventService: EventService) => {
 
           state.advancePaymentAmount = advancePayment === 0 ? null : advancePayment
           state.allowOnSitePayment = true // По умолчанию разрешаем оплату на месте
+
+          // Если есть предоплата, переходим к настройке крайнего срока
+          if (advancePayment > 0) {
+            state.step = 'advance_payment_deadline'
+            const defaultDeadline = new Date(state.startDate!.getTime() - 24 * 60 * 60 * 1000)
+            const exampleDeadline = DateFormatter.formatDate(defaultDeadline).replace(' в ', ', ')
+
+            await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\nПредоплата: ${state.advancePaymentAmount} грн\n\n${MESSAGES.CREATE_EVENT_ADVANCE_DEADLINE}\nПример: ${exampleDeadline}`, Markup.inlineKeyboard([[Markup.button.callback('💡 За сутки до начала', 'set_default_deadline')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          } else {
+            // Если предоплаты нет, переходим к дополнительной информации
+            state.step = 'what_to_bring'
+            await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n\nШаг 8/10 (опционально): Что взять с собой\nВведите информацию о том, что участникам нужно взять с собой, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_what_to_bring')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          }
+          break
+
+        case 'advance_payment_deadline':
+          const deadlineDate = parseDateTime(ctx.message.text)
+          if (!deadlineDate) {
+            await ctx.reply('Неверный формат даты. Пожалуйста, введите в формате ДД.ММ.ГГГГ, ЧЧ:ММ')
+            return
+          }
+
+          // Проверяем что дата корректна
+          const now = new Date()
+          if (deadlineDate <= now) {
+            await ctx.reply('Крайний срок оплаты должен быть в будущем. Попробуйте еще раз.')
+            return
+          }
+
+          if (deadlineDate >= state.startDate!) {
+            await ctx.reply('Крайний срок оплаты должен быть до начала встречи. Попробуйте еще раз.')
+            return
+          }
+
+          state.advancePaymentDeadline = deadlineDate
           state.step = 'what_to_bring'
 
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n${state.advancePaymentAmount ? `Предоплата: ${state.advancePaymentAmount} грн\n` : ''}\n\nШаг 8/9 (опционально): Что взять с собой\nВведите информацию о том, что участникам нужно взять с собой, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_what_to_bring')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\nПредоплата: ${state.advancePaymentAmount} грн (до ${DateFormatter.formatDate(state.advancePaymentDeadline)})\n\nШаг 8/10 (опционально): Что взять с собой\nВведите информацию о том, что участникам нужно взять с собой, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_what_to_bring')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'what_to_bring':
           state.whatToBring = ctx.message.text
           state.step = 'how_to_get_there'
 
-          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n${state.advancePaymentAmount ? `Предоплата: ${state.advancePaymentAmount} грн\n` : ''}${state.whatToBring ? `Что взять: ${state.whatToBring}\n` : ''}\n\nШаг 9/9 (опционально): Как добраться\nВведите информацию о том, как добраться до места встречи, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_how_to_get_there')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+          await ctx.reply(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n${state.advancePaymentAmount ? `Предоплата: ${state.advancePaymentAmount} грн (до ${DateFormatter.formatDate(state.advancePaymentDeadline!)})\n` : ''}${state.whatToBring ? `Что взять: ${state.whatToBring}\n` : ''}\n\nШаг 9/10 (опционально): Как добраться\nВведите информацию о том, как добраться до места встречи, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_how_to_get_there')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
           break
 
         case 'how_to_get_there':
@@ -180,7 +216,7 @@ export const createEventScene = (eventService: EventService) => {
     state.imageFileId = null
     state.imageFileName = null
     state.step = 'full_payment'
-    await ctx.editMessageText(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n\nШаг 6/7: Введите стоимость участия в гривнах (только число):\nПример: 200`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+    await ctx.editMessageText(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\n\nШаг 6/8: Введите стоимость участия в гривнах (только число):\nПример: 200`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_create')]]))
   })
 
   scene.action('no_advance_payment', async ctx => {
@@ -190,7 +226,7 @@ export const createEventScene = (eventService: EventService) => {
     state.allowOnSitePayment = true
     state.step = 'what_to_bring'
 
-    await ctx.editMessageText(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n\nШаг 8/9 (опционально): Что взять с собой\nВведите информацию о том, что участникам нужно взять с собой, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_what_to_bring')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+    await ctx.editMessageText(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n\nШаг 8/10 (опционально): Что взять с собой\nВведите информацию о том, что участникам нужно взять с собой, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_what_to_bring')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
   })
 
   scene.action('skip_what_to_bring', async ctx => {
@@ -199,7 +235,7 @@ export const createEventScene = (eventService: EventService) => {
     state.whatToBring = null
     state.step = 'how_to_get_there'
 
-    await ctx.editMessageText(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n${state.advancePaymentAmount ? `Предоплата: ${state.advancePaymentAmount} грн\n` : ''}\n\nШаг 9/9 (опционально): Как добраться\nВведите информацию о том, как добраться до места встречи, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_how_to_get_there')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
+    await ctx.editMessageText(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\n${state.advancePaymentAmount ? `Предоплата: ${state.advancePaymentAmount} грн (до ${DateFormatter.formatDate(state.advancePaymentDeadline!)})\n` : ''}\n\nШаг 9/10 (опционально): Как добраться\nВведите информацию о том, как добраться до места встречи, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_how_to_get_there')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
   })
 
   scene.action('skip_how_to_get_there', async ctx => {
@@ -208,6 +244,17 @@ export const createEventScene = (eventService: EventService) => {
     state.howToGetThere = null
 
     await createEvent(ctx, state, eventService)
+  })
+
+  scene.action('set_default_deadline', async ctx => {
+    await ctx.answerCbQuery()
+    const state = (ctx.session as any)?.createEventState as CreateEventSceneState
+
+    // Устанавливаем дефолтный дедлайн (за сутки до начала)
+    state.advancePaymentDeadline = new Date(state.startDate!.getTime() - 24 * 60 * 60 * 1000)
+    state.step = 'what_to_bring'
+
+    await ctx.editMessageText(`Название: ${state.title}\nНачало: ${DateFormatter.formatDate(state.startDate!)}\nОкончание: ${DateFormatter.formatDate(state.endDate!)}\nОписание: ${state.description}\nСтоимость: ${state.fullPaymentAmount} грн\nПредоплата: ${state.advancePaymentAmount} грн (до ${DateFormatter.formatDate(state.advancePaymentDeadline)})\n\nШаг 8/10 (опционально): Что взять с собой\nВведите информацию о том, что участникам нужно взять с собой, или пропустите этот шаг:`, Markup.inlineKeyboard([[Markup.button.callback('⏭️ Пропустить', 'skip_what_to_bring')], [Markup.button.callback('❌ Отмена', 'cancel_create')]]))
   })
 
   scene.action('cancel_create', async ctx => {
@@ -228,7 +275,7 @@ async function createEvent(ctx: BotContext, state: CreateEventSceneState, eventS
       endDate: state.endDate!,
       fullPaymentAmount: state.fullPaymentAmount!,
       advancePaymentAmount: state.advancePaymentAmount,
-      advancePaymentDeadline: state.advancePaymentAmount ? new Date(state.startDate!.getTime() - 24 * 60 * 60 * 1000) : null, // За сутки до начала
+      advancePaymentDeadline: state.advancePaymentDeadline,
       allowOnSitePayment: state.allowOnSitePayment!,
       location: null, // Можно добавить в будущем
       imageFileId: state.imageFileId,

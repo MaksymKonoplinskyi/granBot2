@@ -8,7 +8,7 @@ import { showEventsManagementMenu } from '../utils/admin-menus'
 
 interface EditEventSceneState {
   eventId: number
-  editingField?: 'title' | 'start_date' | 'end_date' | 'description' | 'full_payment' | 'advance_payment' | 'image' | 'scheduled_publish'
+  editingField?: 'title' | 'start_date' | 'end_date' | 'description' | 'full_payment' | 'advance_payment' | 'advance_payment_deadline' | 'image' | 'scheduled_publish'
 }
 
 // Вспомогательная функция для парсинга даты в формате DD.MM.YYYY, HH:mm
@@ -154,11 +154,35 @@ export const createEditEventScene = (eventService: EventService) => {
           }
           updateData.advancePaymentAmount = advancePayment === 0 ? null : advancePayment
           if (advancePayment > 0) {
-            // Устанавливаем дедлайн за сутки до начала события
-            updateData.advancePaymentDeadline = new Date(event.startDate.getTime() - 24 * 60 * 60 * 1000)
+            // Устанавливаем дедлайн за сутки до начала события (если его еще нет)
+            if (!event.advancePaymentDeadline) {
+              updateData.advancePaymentDeadline = new Date(event.startDate.getTime() - 24 * 60 * 60 * 1000)
+            }
           } else {
             updateData.advancePaymentDeadline = null
           }
+          break
+
+        case 'advance_payment_deadline':
+          const deadlineDate = parseDateTime(ctx.message.text)
+          if (!deadlineDate) {
+            await ctx.reply('Неверный формат даты. Пожалуйста, введите в формате ДД.ММ.ГГГГ, ЧЧ:ММ')
+            return
+          }
+
+          // Проверяем что дата корректна
+          const nowDeadline = new Date()
+          if (deadlineDate <= nowDeadline) {
+            await ctx.reply('Крайний срок оплаты должен быть в будущем. Попробуйте еще раз.')
+            return
+          }
+
+          if (deadlineDate >= event.startDate) {
+            await ctx.reply('Крайний срок оплаты должен быть до начала встречи. Попробуйте еще раз.')
+            return
+          }
+
+          updateData.advancePaymentDeadline = deadlineDate
           break
 
         case 'scheduled_publish':
@@ -168,8 +192,8 @@ export const createEditEventScene = (eventService: EventService) => {
             return
           }
 
-          const now = new Date()
-          if (scheduledDate <= now) {
+          const nowScheduled = new Date()
+          if (scheduledDate <= nowScheduled) {
             await ctx.reply('Дата публикации должна быть в будущем. Попробуйте еще раз.')
             return
           }
@@ -242,6 +266,14 @@ export const createEditEventScene = (eventService: EventService) => {
 
       case 'advance_payment':
         await ctx.reply(`Текущая предоплата: ${event.advancePaymentAmount ? `${event.advancePaymentAmount} грн` : 'Не установлена'}\n\nВведите новую стоимость предоплаты (только число или 0 для отключения):`, Markup.inlineKeyboard([[Markup.button.callback('❌ Отмена', 'cancel_edit')]]))
+        break
+
+      case 'advance_payment_deadline':
+        const currentDeadline = event.advancePaymentDeadline ? DateFormatter.formatDate(event.advancePaymentDeadline) : 'Не установлен'
+        const defaultDeadline = new Date(event.startDate.getTime() - 24 * 60 * 60 * 1000)
+        const exampleDeadline = DateFormatter.formatDate(defaultDeadline).replace(' в ', ', ')
+
+        await ctx.reply(`Текущий крайний срок: ${currentDeadline}\n\nВведите новый крайний срок оплаты заранее (ДД.ММ.ГГГГ, ЧЧ:ММ):\nПример: ${exampleDeadline}`, Markup.inlineKeyboard([[Markup.button.callback('💡 За сутки до начала', 'set_default_edit_deadline')], [Markup.button.callback('❌ Отмена', 'cancel_edit')]]))
         break
 
       case 'image':
@@ -353,6 +385,33 @@ export const createEditEventScene = (eventService: EventService) => {
     await showEventEditMenu(ctx, eventService, state.eventId)
   })
 
+  scene.action('set_default_edit_deadline', async ctx => {
+    await ctx.answerCbQuery()
+    const state = (ctx.session as any)?.editEventState as EditEventSceneState
+
+    const event = await eventService.getEventById(state.eventId)
+    if (!event) {
+      await ctx.reply('Событие не найдено')
+      return ctx.scene.leave()
+    }
+
+    // Устанавливаем дефолтный дедлайн (за сутки до начала)
+    const defaultDeadline = new Date(event.startDate.getTime() - 24 * 60 * 60 * 1000)
+
+    try {
+      await eventService.updateEvent(state.eventId, { advancePaymentDeadline: defaultDeadline })
+      await ctx.editMessageText('✅ Крайний срок установлен за сутки до начала встречи')
+
+      state.editingField = undefined
+      setTimeout(async () => {
+        await showEventEditMenu(ctx, eventService, state.eventId)
+      }, 1000)
+    } catch (error) {
+      console.error('Error updating deadline:', error)
+      await ctx.reply('Ошибка при обновлении крайнего срока')
+    }
+  })
+
   scene.action('back_to_events', async ctx => {
     await ctx.answerCbQuery()
     ctx.scene.leave()
@@ -375,9 +434,17 @@ async function showEventEditMenu(ctx: BotContext, eventService: EventService, ev
     const imageStatus = event.imageFileId ? '🖼 Загружено' : '📷 Отсутствует'
     const scheduledStatus = event.scheduledPublishDate ? `⏰ ${DateFormatter.formatDate(event.scheduledPublishDate)}` : '❌ Не задана'
 
-    const eventText = `📝 Редактирование встречи\n\n` + `📅 Название: ${event.title}\n` + `🕒 Начало: ${DateFormatter.formatDate(event.startDate)}\n` + `🕕 Окончание: ${DateFormatter.formatDate(event.endDate)}\n` + `📄 Описание: ${event.description}\n` + `🖼 Изображение: ${imageStatus}\n` + `💰 Стоимость: ${event.fullPaymentAmount} грн\n` + `💳 Предоплата: ${event.advancePaymentAmount ? `${event.advancePaymentAmount} грн` : 'Не установлена'}\n` + `👥 Участников: ${event.participantCount}\n` + `📊 Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` + `⏰ Отложенная публикация: ${scheduledStatus}\n\n` + `Выберите поле для редактирования:`
+    const deadlineStatus = event.advancePaymentDeadline ? DateFormatter.formatDate(event.advancePaymentDeadline) : 'Не установлен'
+    const eventText = `📝 Редактирование встречи\n\n` + `📅 Название: ${event.title}\n` + `🕒 Начало: ${DateFormatter.formatDate(event.startDate)}\n` + `🕕 Окончание: ${DateFormatter.formatDate(event.endDate)}\n` + `📄 Описание: ${event.description}\n` + `🖼 Изображение: ${imageStatus}\n` + `💰 Стоимость: ${event.fullPaymentAmount} грн\n` + `💳 Предоплата: ${event.advancePaymentAmount ? `${event.advancePaymentAmount} грн` : 'Не установлена'}\n` + (event.advancePaymentAmount ? `⏰ Крайний срок предоплаты: ${deadlineStatus}\n` : '') + `👥 Участников: ${event.participantCount}\n` + `📊 Статус: ${event.isPublished ? '✅ Опубликована' : '📝 Черновик'}\n` + `⏰ Отложенная публикация: ${scheduledStatus}\n\n` + `Выберите поле для редактирования:`
 
-    const buttons = [[Markup.button.callback('✏️ Название', 'edit_field_title')], [Markup.button.callback('🕒 Дата начала', 'edit_field_start_date')], [Markup.button.callback('🕕 Дата окончания', 'edit_field_end_date')], [Markup.button.callback('📄 Описание', 'edit_field_description')], [Markup.button.callback('🖼 Изображение', 'edit_field_image')], [Markup.button.callback('💰 Стоимость', 'edit_field_full_payment')], [Markup.button.callback('💳 Предоплата', 'edit_field_advance_payment')], [Markup.button.callback('👥 Список участников', `view_participants_${eventId}`)]]
+    const buttons = [[Markup.button.callback('✏️ Название', 'edit_field_title')], [Markup.button.callback('🕒 Дата начала', 'edit_field_start_date')], [Markup.button.callback('🕕 Дата окончания', 'edit_field_end_date')], [Markup.button.callback('📄 Описание', 'edit_field_description')], [Markup.button.callback('🖼 Изображение', 'edit_field_image')], [Markup.button.callback('💰 Стоимость', 'edit_field_full_payment')], [Markup.button.callback('💳 Предоплата', 'edit_field_advance_payment')]]
+
+    // Добавляем кнопку для редактирования крайнего срока только если есть предоплата
+    if (event.advancePaymentAmount) {
+      buttons.push([Markup.button.callback('⏰ Крайний срок предоплаты', 'edit_field_advance_payment_deadline')])
+    }
+
+    buttons.push([Markup.button.callback('👥 Список участников', `view_participants_${eventId}`)])
 
     // Добавляем кнопки публикации только если встреча не опубликована
     if (!event.isPublished) {
