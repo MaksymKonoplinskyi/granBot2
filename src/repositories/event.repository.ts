@@ -120,6 +120,16 @@ export class EventRepository {
   async getUserAttendedEvents(internalUserId: number): Promise<Event[]> {
     const currentDate = new Date()
 
-    return this.repository.createQueryBuilder('event').leftJoinAndSelect('event.participants', 'participants').leftJoinAndSelect('participants.user', 'user').where('event.endDate < :currentDate', { currentDate }).andWhere('event.isPublished = :isPublished', { isPublished: true }).andWhere('event.isCancelled = :isCancelled', { isCancelled: false }).andWhere('participants.user.id = :internalUserId', { internalUserId }).andWhere('participants.attendanceStatus = :attendanceStatus', { attendanceStatus: 'attended' }).orderBy('event.startDate', 'DESC').getMany()
+    return this.repository
+      .createQueryBuilder('event')
+      .leftJoinAndSelect('event.participants', 'participants')
+      .leftJoinAndSelect('participants.user', 'user')
+      .where('event.endDate < :currentDate', { currentDate })
+      .andWhere('event.isPublished = :isPublished', { isPublished: true })
+      .andWhere('event.isCancelled = :isCancelled', { isCancelled: false })
+      .andWhere('participants.user.id = :internalUserId', { internalUserId })
+      .andWhere('participants.status IN (:...statuses)', { statuses: ['payment_on_site', 'payment_confirmed'] })
+      .orderBy('event.startDate', 'DESC')
+      .getMany()
   }
 }

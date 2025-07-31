@@ -358,10 +358,10 @@ export class TelegramBot {
     this.bot.action('reviews_page_current', ctx => ctx.answerCbQuery())
     this.bot.action('create_review', ctx => this.reviewController.startCreateReview(ctx))
     this.bot.action('edit_review', ctx => this.reviewController.startEditReview(ctx))
-    this.bot.action('hide_review', ctx => this.reviewController.showHideReviewsList(ctx))
-    this.bot.action(/^hide_review_(\d+)$/, ctx => {
+    this.bot.action('toggle_review', ctx => this.reviewController.showToggleReviewsList(ctx))
+    this.bot.action(/^toggle_review_(\d+)$/, ctx => {
       const reviewId = parseInt(ctx.match[1])
-      return this.reviewController.hideReview(ctx, reviewId)
+      return this.reviewController.toggleReviewVisibility(ctx, reviewId)
     })
 
     this.bot.action('help', ctx => {

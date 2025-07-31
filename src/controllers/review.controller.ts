@@ -68,7 +68,7 @@ export class ReviewController {
 
     // Кнопка скрытия отзывов для админов
     if (isAdmin(userId)) {
-      buttons.push([Markup.button.callback('🙈 Скрыть отзыв', 'hide_review')])
+      buttons.push([Markup.button.callback('👁️ Скрыть/отобразить отзыв', 'toggle_review')])
     }
 
     // Кнопка возврата в главное меню
@@ -77,7 +77,7 @@ export class ReviewController {
     return buttons
   }
 
-  async showHideReviewsList(ctx: BotContext): Promise<void> {
+  async showToggleReviewsList(ctx: BotContext): Promise<void> {
     try {
       if (!isAdmin(ctx.from?.id)) {
         await ctx.answerCbQuery(MESSAGES.ERROR_ACCESS_DENIED)
@@ -86,48 +86,53 @@ export class ReviewController {
 
       const reviewsData = await this.reviewService.getReviewsWithPagination(1, 10, true)
 
-      if (reviewsData.reviews.length === 0) {
-        await replaceMessage(ctx, 'Нет отзывов для скрытия.', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к отзывам', 'reviews')]]))
+      // Фильтруем только публичные и скрытые отзывы (исключаем приватные)
+      const toggleableReviews = reviewsData.reviews.filter(review => review.status === 'public' || review.status === 'hidden')
+
+      if (toggleableReviews.length === 0) {
+        await replaceMessage(ctx, 'Нет публичных или скрытых отзывов для изменения видимости.', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к отзывам', 'reviews')]]))
         return
       }
 
-      let messageText = '🙈 Выберите отзыв для скрытия:\n\n'
+      let messageText = '👁️ Выберите отзыв для изменения видимости:\n\n'
 
       const buttons: any[][] = []
 
-      reviewsData.reviews.forEach((review, index) => {
+      toggleableReviews.forEach((review, index) => {
         const shortContent = review.content.length > 50 ? review.content.substring(0, 50) + '...' : review.content
 
         const authorName = review.author.firstName + (review.author.lastName ? ` ${review.author.lastName}` : '')
-        const buttonText = `${index + 1}. ${authorName}: "${shortContent}"`
+        const statusIcon = review.status === 'hidden' ? '🙈' : '👁️'
+        const buttonText = `${statusIcon} ${index + 1}. ${authorName}: "${shortContent}"`
 
-        buttons.push([Markup.button.callback(buttonText, `hide_review_${review.id}`)])
+        buttons.push([Markup.button.callback(buttonText, `toggle_review_${review.id}`)])
       })
 
       buttons.push([Markup.button.callback('◀️ Назад к отзывам', 'reviews')])
 
       await replaceMessage(ctx, messageText, Markup.inlineKeyboard(buttons))
     } catch (error) {
-      console.error('Error showing hide reviews list:', error)
+      console.error('Error showing toggle reviews list:', error)
       await ctx.reply(MESSAGES.ERROR_GENERAL)
     }
   }
 
-  async hideReview(ctx: BotContext, reviewId: number): Promise<void> {
+  async toggleReviewVisibility(ctx: BotContext, reviewId: number): Promise<void> {
     try {
       if (!isAdmin(ctx.from?.id)) {
         await ctx.answerCbQuery(MESSAGES.ERROR_ACCESS_DENIED)
         return
       }
 
-      await this.reviewService.hideReview(reviewId)
-      await ctx.answerCbQuery('Отзыв скрыт')
+      const newStatus = await this.reviewService.toggleReviewVisibility(reviewId)
+      const message = newStatus === 'hidden' ? 'Отзыв скрыт' : 'Отзыв отображается'
+      await ctx.answerCbQuery(message)
 
       // Возвращаемся к списку отзывов
       await this.showReviews(ctx, 1)
-    } catch (error) {
-      console.error('Error hiding review:', error)
-      await ctx.answerCbQuery('Ошибка при скрытии отзыва')
+    } catch (error: any) {
+      console.error('Error toggling review visibility:', error)
+      await ctx.answerCbQuery(error.message || 'Ошибка при изменении видимости отзыва')
     }
   }
 

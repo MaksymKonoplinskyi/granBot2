@@ -342,7 +342,7 @@ export class EventService {
         userId: p.user.id,
         status: p.status,
         joinedAt: p.joinedAt,
-        attendanceStatus: 'attended', // Для посещенных событий
+        attendanceStatus: 'attended', // Для посещенных событий (они уже отфильтрованы в запросе)
         onSitePaymentStatus: null,
       })),
       userParticipation: null, // Для этого случая не нужно

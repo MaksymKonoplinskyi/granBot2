@@ -89,8 +89,21 @@ export class ReviewRepository {
     return count > 0
   }
 
-  async hideReview(reviewId: number): Promise<void> {
-    await this.reviewRepository.update(reviewId, { status: ReviewStatus.HIDDEN })
+  async toggleReviewVisibility(reviewId: number): Promise<string> {
+    const review = await this.reviewRepository.findOne({ where: { id: reviewId } })
+    if (!review) {
+      throw new Error('Отзыв не найден')
+    }
+
+    // Проверяем, что отзыв можно переключать (только публичные и скрытые)
+    if (review.status === ReviewStatus.PRIVATE) {
+      throw new Error('Нельзя изменить видимость приватного отзыва')
+    }
+
+    const newStatus = review.status === ReviewStatus.HIDDEN ? ReviewStatus.PUBLIC : ReviewStatus.HIDDEN
+    await this.reviewRepository.update(reviewId, { status: newStatus })
+
+    return newStatus
   }
 
   private mapToDetailsDto(review: Review): ReviewDetailsDto {

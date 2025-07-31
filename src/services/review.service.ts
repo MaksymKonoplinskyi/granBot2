@@ -97,8 +97,8 @@ export class ReviewService {
     return await this.reviewRepository.hasUserLeftAnyReview(user.id)
   }
 
-  async hideReview(reviewId: number): Promise<void> {
-    await this.reviewRepository.hideReview(reviewId)
+  async toggleReviewVisibility(reviewId: number): Promise<string> {
+    return await this.reviewRepository.toggleReviewVisibility(reviewId)
   }
 
   async getUserAttendedEvents(telegramId: number): Promise<EventDetailsDto[]> {
