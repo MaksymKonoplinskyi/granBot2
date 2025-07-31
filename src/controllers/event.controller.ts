@@ -6,6 +6,7 @@ import { MESSAGES, BUTTONS } from '../constants/messages'
 import { ParticipationStatus } from '../entities/EventParticipant'
 import { isAdmin } from '../utils/auth.utils'
 import { PaymentDetailsController } from './payment-details.controller'
+import { safeEditMessage } from '../utils/message-utils'
 
 export class EventController {
   constructor(private eventService: EventService, private paymentDetailsController: PaymentDetailsController) {}
@@ -55,7 +56,7 @@ export class EventController {
 
       // Отправляем обычное текстовое сообщение
       if (ctx.callbackQuery) {
-        await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons))
+        await safeEditMessage(ctx, messageText, Markup.inlineKeyboard(buttons))
       } else {
         await ctx.reply(messageText, Markup.inlineKeyboard(buttons))
       }
@@ -103,7 +104,7 @@ export class EventController {
         await this.showUserEvents(ctx)
       } else {
         // Для других типов оплаты (advance/full) - переходим к выбору способа оплаты
-        await ctx.editMessageText('Теперь выберите способ оплаты:', Markup.inlineKeyboard([[Markup.button.callback('💳 Выбрать способ оплаты', `pay_event_${eventId}`)]]))
+        await safeEditMessage(ctx, 'Теперь выберите способ оплаты:', Markup.inlineKeyboard([[Markup.button.callback('💳 Выбрать способ оплаты', `pay_event_${eventId}`)]]))
       }
     } catch (error) {
       console.error('Error joining event:', error)
@@ -145,7 +146,7 @@ export class EventController {
         const emptyMessage = showPast ? 'У вас нет прошедших встреч.' : 'У вас нет предстоящих встреч.'
 
         if (ctx.callbackQuery) {
-          await ctx.editMessageText(emptyMessage, Markup.inlineKeyboard([[Markup.button.callback(showPast ? '▶️ Ближайшие встречи' : '◀️ Прошедшие встречи', `toggle_events${showPast ? '' : '_past'}_my`)], [Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
+          await safeEditMessage(ctx, emptyMessage, Markup.inlineKeyboard([[Markup.button.callback(showPast ? '▶️ Ближайшие встречи' : '◀️ Прошедшие встречи', `toggle_events${showPast ? '' : '_past'}_my`)], [Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
         } else {
           await ctx.reply(emptyMessage, Markup.inlineKeyboard([[Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
         }
@@ -160,7 +161,7 @@ export class EventController {
       buttons.push([Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')])
 
       if (ctx.callbackQuery) {
-        await ctx.editMessageText(messageText, Markup.inlineKeyboard(buttons))
+        await safeEditMessage(ctx, messageText, Markup.inlineKeyboard(buttons))
       } else {
         await ctx.reply(messageText, Markup.inlineKeyboard(buttons))
       }
@@ -249,7 +250,7 @@ export class EventController {
 
       buttons.push([Markup.button.callback('🏠 Главное меню', 'main_menu')])
 
-      await ctx.editMessageText(message, Markup.inlineKeyboard(buttons))
+      await safeEditMessage(ctx, message, Markup.inlineKeyboard(buttons))
     } catch (error) {
       console.error('Error showing successful registration:', error)
       await ctx.answerCbQuery(MESSAGES.ERROR_GENERAL)

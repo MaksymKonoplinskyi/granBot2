@@ -147,7 +147,7 @@ export class PaymentDetailsController {
       }
 
       await ctx.answerCbQuery()
-      await ctx.editMessageText('Редактирование реквизитов временно недоступно через упрощенный интерфейс.\n' + 'Используйте полную админ-панель для редактирования реквизитов.', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к реквизитам', 'edit_payment_details')]]))
+      await safeEditMessage(ctx, 'Редактирование реквизитов временно недоступно через упрощенный интерфейс.\n' + 'Используйте полную админ-панель для редактирования реквизитов.', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к реквизитам', 'edit_payment_details')]]))
     } catch (error) {
       console.error('Error in editPaymentDetails:', error)
       await ctx.answerCbQuery('Ошибка при редактировании реквизитов')
