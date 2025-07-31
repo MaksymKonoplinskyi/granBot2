@@ -6,7 +6,7 @@ import { MESSAGES, BUTTONS } from '../constants/messages'
 import { ParticipationStatus } from '../entities/EventParticipant'
 import { isAdmin } from '../utils/auth.utils'
 import { PaymentDetailsController } from './payment-details.controller'
-import { safeEditMessage } from '../utils/message-utils'
+import { safeEditMessage, safeEditOrReply, replaceMessage, replaceWithPhoto } from '../utils/message-utils'
 
 export class EventController {
   constructor(private eventService: EventService, private paymentDetailsController: PaymentDetailsController) {}
@@ -16,7 +16,7 @@ export class EventController {
       const events = await this.eventService.getUpcomingEvents(ctx.from?.id)
 
       if (events.length === 0) {
-        await ctx.reply(MESSAGES.EMPTY_UPCOMING_EVENTS, Markup.inlineKeyboard([[Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
+        await safeEditOrReply(ctx, MESSAGES.EMPTY_UPCOMING_EVENTS, Markup.inlineKeyboard([[Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
         return
       }
 
@@ -24,7 +24,7 @@ export class EventController {
       const buttons = events.map(event => [Markup.button.callback(`📋 ${event.title}`, `event_details_${event.id}`)])
       buttons.push([Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')])
 
-      await ctx.reply(messageText, Markup.inlineKeyboard(buttons))
+      await safeEditOrReply(ctx, messageText, Markup.inlineKeyboard(buttons))
     } catch (error) {
       console.error('Error showing upcoming events:', error)
       await ctx.reply(MESSAGES.ERROR_GENERAL)
@@ -43,10 +43,7 @@ export class EventController {
       // Если есть изображение, отправляем его отдельно
       if (event.imageFileId) {
         try {
-          await ctx.replyWithPhoto(event.imageFileId, {
-            caption: messageText,
-            reply_markup: Markup.inlineKeyboard(buttons).reply_markup,
-          })
+          await replaceWithPhoto(ctx, event.imageFileId, messageText, Markup.inlineKeyboard(buttons))
           return
         } catch (error) {
           console.error('Error sending photo:', error)
@@ -55,11 +52,7 @@ export class EventController {
       }
 
       // Отправляем обычное текстовое сообщение
-      if (ctx.callbackQuery) {
-        await safeEditMessage(ctx, messageText, Markup.inlineKeyboard(buttons))
-      } else {
-        await ctx.reply(messageText, Markup.inlineKeyboard(buttons))
-      }
+      await replaceMessage(ctx, messageText, Markup.inlineKeyboard(buttons))
     } catch (error) {
       console.error('Error showing event details:', error)
       await ctx.reply(MESSAGES.ERROR_EVENT_NOT_FOUND)
@@ -148,7 +141,7 @@ export class EventController {
         if (ctx.callbackQuery) {
           await safeEditMessage(ctx, emptyMessage, Markup.inlineKeyboard([[Markup.button.callback(showPast ? '▶️ Ближайшие встречи' : '◀️ Прошедшие встречи', `toggle_events${showPast ? '' : '_past'}_my`)], [Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
         } else {
-          await ctx.reply(emptyMessage, Markup.inlineKeyboard([[Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
+          await safeEditOrReply(ctx, emptyMessage, Markup.inlineKeyboard([[Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
         }
         return
       }
@@ -160,11 +153,7 @@ export class EventController {
       buttons.push([Markup.button.callback(showPast ? '▶️ Ближайшие встречи' : '◀️ Прошедшие встречи', `toggle_events${showPast ? '' : '_past'}_my`)])
       buttons.push([Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')])
 
-      if (ctx.callbackQuery) {
-        await safeEditMessage(ctx, messageText, Markup.inlineKeyboard(buttons))
-      } else {
-        await ctx.reply(messageText, Markup.inlineKeyboard(buttons))
-      }
+      await safeEditOrReply(ctx, messageText, Markup.inlineKeyboard(buttons))
     } catch (error) {
       console.error('Error showing user events:', error)
       await ctx.reply(MESSAGES.ERROR_GENERAL)

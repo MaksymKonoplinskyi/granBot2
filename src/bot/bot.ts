@@ -15,7 +15,7 @@ import { ClubInfoController } from '../controllers/club-info.controller'
 import { MESSAGES, BUTTONS } from '../constants/messages'
 import { isAdmin } from '../utils/auth.utils'
 import { ADMINS, PAYMENT_ADMIN_ID } from '../config'
-import { safeEditMessage } from '../utils/message-utils'
+import { safeEditMessage, replaceMessage } from '../utils/message-utils'
 import { DateFormatter } from '../utils/formatters'
 import { MessageFormatter } from '../utils/formatters'
 import { ParticipationStatus } from '../entities/EventParticipant'
@@ -207,7 +207,7 @@ export class TelegramBot {
         buttons.push([Markup.button.callback(BUTTONS.ADMIN_PANEL, 'admin')])
       }
 
-      await safeEditMessage(ctx, MESSAGES.MAIN_MENU, Markup.inlineKeyboard(buttons))
+      await replaceMessage(ctx, MESSAGES.MAIN_MENU, Markup.inlineKeyboard(buttons))
     })
     this.bot.action('new_events', ctx => this.eventController.showUpcomingEvents(ctx))
     this.bot.action('my_events', ctx => this.eventController.showUserEvents(ctx))

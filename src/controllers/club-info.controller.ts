@@ -3,7 +3,7 @@ import { BotContext } from '../types/bot.types'
 import { ClubInfoService } from '../services/club-info.service'
 import { MESSAGES, BUTTONS } from '../constants/messages'
 import { isAdmin } from '../utils/auth.utils'
-import { safeEditMessage } from '../utils/message-utils'
+import { safeEditMessage, safeEditOrReply } from '../utils/message-utils'
 
 export class ClubInfoController {
   constructor(private clubInfoService: ClubInfoService) {}
@@ -34,7 +34,7 @@ export class ClubInfoController {
     try {
       await this.clubInfoService.updateClubInfo(description)
 
-      await ctx.reply('✅ Информация о клубе успешно обновлена!', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад', 'info')]]))
+      await safeEditOrReply(ctx, '✅ Информация о клубе успешно обновлена!', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад', 'info')]]))
     } catch (error) {
       console.error('Error updating club info:', error)
       await ctx.reply(MESSAGES.ERROR_GENERAL)
