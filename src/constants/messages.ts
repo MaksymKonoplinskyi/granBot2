@@ -74,7 +74,7 @@ export const BUTTONS = {
   NO: '❌ Нет',
 
   // Встречи
-  UPCOMING_EVENTS: '▶️ Ближайшие встречи',
+  UPCOMING_EVENTS: 'Ближайшие встречи',
   MY_EVENTS: 'Мои встречи',
   JOIN_EVENT: '✅ Принять участие',
   LEAVE_EVENT: '❌ Отменить участие',
