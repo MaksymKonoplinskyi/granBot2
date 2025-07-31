@@ -104,7 +104,7 @@ export class PaymentDetailsController {
 
       const buttons = paymentDetails.map(details => [Markup.button.callback(details.title, `select_payment_method_${eventId}_${details.id}`)])
 
-      buttons.push([Markup.button.callback('◀️ Назад', `event_${eventId}`)])
+      buttons.push([Markup.button.callback('◀️ Назад', `event_details_${eventId}`)])
 
       await safeEditMessage(ctx, 'Выберите способ оплаты:', Markup.inlineKeyboard(buttons))
     } catch (error) {

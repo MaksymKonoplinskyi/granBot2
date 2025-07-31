@@ -240,6 +240,10 @@ export class TelegramBot {
       return this.eventController.showUserEvents(ctx, isPast)
     })
 
+    // Обработчики для кнопок "Назад" в деталях встреч
+    this.bot.action('toggle_events', ctx => this.eventController.showUpcomingEvents(ctx))
+    this.bot.action('toggle_events_past', ctx => this.eventController.showUpcomingEvents(ctx))
+
     // Админские действия
     this.bot.action('admin', ctx => this.adminController.showAdminPanel(ctx))
     this.bot.action('admin_events', ctx => this.adminController.showEventsMenu(ctx))
