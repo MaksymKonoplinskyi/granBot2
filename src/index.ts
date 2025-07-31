@@ -22,6 +22,7 @@ import { EventParticipant } from './entities/EventParticipant'
 import { User } from './entities/User'
 import { PaymentDetails } from './entities/PaymentDetails'
 import { ClubInfo } from './entities/ClubInfo'
+import { Review } from './entities/Review'
 import { EventRepository } from './repositories/event.repository'
 import { UserRepository } from './repositories/user.repository'
 import { EventService } from './services/event.service'
@@ -32,7 +33,7 @@ const AppDataSource = new DataSource({
   database: DATABASE_CONFIG.DATABASE,
   synchronize: true, // Автоматически создаем таблицы
   logging: DATABASE_CONFIG.LOGGING,
-  entities: [Event, EventParticipant, User, PaymentDetails, ClubInfo],
+  entities: [Event, EventParticipant, User, PaymentDetails, ClubInfo, Review],
   migrations: [],
   subscribers: [],
 })

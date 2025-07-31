@@ -317,4 +317,35 @@ export class EventService {
       console.error('❌ Critical error in checkAndPublishScheduledEvents:', error)
     }
   }
+
+  async getUserAttendedEvents(userId: number): Promise<EventDetailsDto[]> {
+    const events = await this.eventRepository.getUserAttendedEvents(userId)
+
+    return events.map(event => ({
+      id: event.id,
+      title: event.title,
+      description: event.description || '',
+      startDate: event.startDate,
+      endDate: event.endDate,
+      imageFileId: event.imageFileId || null,
+      fullPaymentAmount: event.fullPaymentAmount || 0,
+      advancePaymentAmount: event.advancePaymentAmount || null,
+      advancePaymentDeadline: event.advancePaymentDeadline || null,
+      whatToBring: event.whatToBring || null,
+      howToGetThere: event.howToGetThere || null,
+      isPublished: event.isPublished,
+      isCancelled: event.isCancelled,
+      scheduledPublishDate: event.scheduledPublishDate,
+      allowOnSitePayment: event.allowOnSitePayment || true,
+      participantCount: event.participants?.length || 0,
+      participants: (event.participants || []).map(p => ({
+        userId: p.user.id,
+        status: p.status,
+        joinedAt: p.joinedAt,
+        attendanceStatus: 'attended', // Для посещенных событий
+        onSitePaymentStatus: null,
+      })),
+      userParticipation: null, // Для этого случая не нужно
+    }))
+  }
 }

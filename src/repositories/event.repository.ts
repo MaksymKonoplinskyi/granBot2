@@ -116,4 +116,10 @@ export class EventRepository {
   async findScheduledForPublish(currentDate: Date): Promise<Event[]> {
     return this.repository.createQueryBuilder('event').leftJoinAndSelect('event.participants', 'participants').leftJoinAndSelect('participants.user', 'user').where('event.isPublished = :isPublished', { isPublished: false }).andWhere('event.isCancelled = :isCancelled', { isCancelled: false }).andWhere('event.scheduledPublishDate IS NOT NULL').andWhere('event.scheduledPublishDate < :currentDate', { currentDate: currentDate.toISOString() }).getMany()
   }
+
+  async getUserAttendedEvents(internalUserId: number): Promise<Event[]> {
+    const currentDate = new Date()
+
+    return this.repository.createQueryBuilder('event').leftJoinAndSelect('event.participants', 'participants').leftJoinAndSelect('participants.user', 'user').where('event.endDate < :currentDate', { currentDate }).andWhere('event.isPublished = :isPublished', { isPublished: true }).andWhere('event.isCancelled = :isCancelled', { isCancelled: false }).andWhere('participants.user.id = :internalUserId', { internalUserId }).andWhere('participants.attendanceStatus = :attendanceStatus', { attendanceStatus: 'attended' }).orderBy('event.startDate', 'DESC').getMany()
+  }
 }

@@ -5,6 +5,7 @@ import { EventParticipant } from './entities/EventParticipant'
 import { User } from './entities/User'
 import { PaymentDetails } from './entities/PaymentDetails'
 import { ClubInfo } from './entities/ClubInfo'
+import { Review } from './entities/Review'
 
 export function getDataSource(verbose: boolean = false): DataSource {
   return new DataSource({
@@ -16,6 +17,6 @@ export function getDataSource(verbose: boolean = false): DataSource {
     database: process.env.DB_NAME,
     synchronize: true, // В проде лучше false!
     logging: verbose,
-    entities: [Event, EventParticipant, User, PaymentDetails, ClubInfo],
+    entities: [Event, EventParticipant, User, PaymentDetails, ClubInfo, Review],
   })
 }

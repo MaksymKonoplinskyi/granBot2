@@ -4,14 +4,17 @@ import { BotContext, BotConfig } from '../types/bot.types'
 import { EventService } from '../services/event.service'
 import { PaymentDetailsService } from '../services/payment-details.service'
 import { ClubInfoService } from '../services/club-info.service'
+import { ReviewService } from '../services/review.service'
 import { EventRepository } from '../repositories/event.repository'
 import { UserRepository } from '../repositories/user.repository'
 import { PaymentDetailsRepository } from '../repositories/payment-details.repository'
 import { ClubInfoRepository } from '../repositories/club-info.repository'
+import { ReviewRepository } from '../repositories/review.repository'
 import { EventController } from '../controllers/event.controller'
 import { AdminController } from '../controllers/admin.controller'
 import { PaymentDetailsController } from '../controllers/payment-details.controller'
 import { ClubInfoController } from '../controllers/club-info.controller'
+import { ReviewController } from '../controllers/review.controller'
 import { MESSAGES, BUTTONS } from '../constants/messages'
 import { isAdmin } from '../utils/auth.utils'
 import { ADMINS, PAYMENT_ADMIN_ID } from '../config'
@@ -37,11 +40,13 @@ export class TelegramBot {
   private readonly eventService: EventService
   private readonly paymentDetailsService: PaymentDetailsService
   private readonly clubInfoService: ClubInfoService
+  private readonly reviewService: ReviewService
   private readonly userRepository: UserRepository
   private readonly eventController: EventController
   private readonly adminController: AdminController
   private readonly paymentDetailsController: PaymentDetailsController
   private readonly clubInfoController: ClubInfoController
+  private readonly reviewController: ReviewController
   private isInitialized = false
   private stage!: Scenes.Stage<BotContext>
 
@@ -53,16 +58,19 @@ export class TelegramBot {
     const userRepository = new UserRepository(dataSource)
     const paymentDetailsRepository = new PaymentDetailsRepository(dataSource)
     const clubInfoRepository = new ClubInfoRepository(dataSource)
+    const reviewRepository = new ReviewRepository(dataSource)
 
     this.eventService = new EventService(eventRepository, userRepository)
     this.paymentDetailsService = new PaymentDetailsService(paymentDetailsRepository)
     this.clubInfoService = new ClubInfoService(clubInfoRepository)
+    this.reviewService = new ReviewService(reviewRepository, eventRepository, userRepository)
     this.userRepository = userRepository
 
     this.paymentDetailsController = new PaymentDetailsController(this.paymentDetailsService)
     this.eventController = new EventController(this.eventService, this.paymentDetailsController)
     this.adminController = new AdminController(this.eventService, this.paymentDetailsService, this.clubInfoService)
     this.clubInfoController = new ClubInfoController(this.clubInfoService)
+    this.reviewController = new ReviewController(this.reviewService)
 
     this.setupErrorHandling()
     this.setupCommands()
@@ -182,13 +190,17 @@ export class TelegramBot {
     const { createPaymentDetailsScene } = require('../scenes/payment-details.scene')
     const { createEventScene } = require('../scenes/create-event.scene')
     const { createEditEventScene } = require('../scenes/edit-event.scene')
+    const { createCreateReviewScene } = require('../scenes/create-review.scene')
+    const { createEditReviewScene } = require('../scenes/edit-review.scene')
 
     const clubInfoScene = createClubInfoScene(this.clubInfoService)
     const paymentDetailsScene = createPaymentDetailsScene(this.paymentDetailsService)
     const eventCreateScene = createEventScene(this.eventService)
     const eventEditScene = createEditEventScene(this.eventService)
+    const createReviewScene = createCreateReviewScene(this.reviewService)
+    const editReviewScene = createEditReviewScene(this.reviewService)
 
-    this.stage = new Scenes.Stage<BotContext>([clubInfoScene, paymentDetailsScene, eventCreateScene, eventEditScene])
+    this.stage = new Scenes.Stage<BotContext>([clubInfoScene, paymentDetailsScene, eventCreateScene, eventEditScene, createReviewScene, editReviewScene])
 
     this.bot.use(session())
     this.bot.use(this.createUserMiddleware())
@@ -338,8 +350,18 @@ export class TelegramBot {
     })
 
     // Обработчики отзывов и помощи
-    this.bot.action('reviews', ctx => {
-      return ctx.answerCbQuery('Функция отзывов будет добавлена позже')
+    this.bot.action('reviews', ctx => this.reviewController.showReviews(ctx, 1))
+    this.bot.action(/^reviews_page_(\d+)$/, ctx => {
+      const page = parseInt(ctx.match[1])
+      return this.reviewController.showReviews(ctx, page)
+    })
+    this.bot.action('reviews_page_current', ctx => ctx.answerCbQuery())
+    this.bot.action('create_review', ctx => this.reviewController.startCreateReview(ctx))
+    this.bot.action('edit_review', ctx => this.reviewController.startEditReview(ctx))
+    this.bot.action('hide_review', ctx => this.reviewController.showHideReviewsList(ctx))
+    this.bot.action(/^hide_review_(\d+)$/, ctx => {
+      const reviewId = parseInt(ctx.match[1])
+      return this.reviewController.hideReview(ctx, reviewId)
     })
 
     this.bot.action('help', ctx => {
