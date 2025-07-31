@@ -207,7 +207,7 @@ export class TelegramBot {
         buttons.push([Markup.button.callback(BUTTONS.ADMIN_PANEL, 'admin')])
       }
 
-      await ctx.editMessageText(MESSAGES.MAIN_MENU, Markup.inlineKeyboard(buttons))
+      await safeEditMessage(ctx, MESSAGES.MAIN_MENU, Markup.inlineKeyboard(buttons))
     })
     this.bot.action('new_events', ctx => this.eventController.showUpcomingEvents(ctx))
     this.bot.action('my_events', ctx => this.eventController.showUserEvents(ctx))
@@ -448,7 +448,7 @@ export class TelegramBot {
     try {
       await this.eventService.updateParticipationStatus(eventId, ctx.from!.id, ParticipationStatus.CANCELLED_NO_PAYMENT)
       await ctx.answerCbQuery('Участие отменено')
-      await ctx.editMessageText('❌ Ваше участие в встрече отменено.', Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]))
+      await safeEditMessage(ctx, '❌ Ваше участие в встрече отменено.', Markup.inlineKeyboard([[Markup.button.callback('🏠 Главное меню', 'main_menu')]]))
     } catch (error) {
       console.error('Error canceling participation:', error)
       await ctx.answerCbQuery(MESSAGES.ERROR_GENERAL)
@@ -465,7 +465,7 @@ export class TelegramBot {
       }
 
       await ctx.answerCbQuery()
-      await ctx.editMessageText(`🎒 Что взять с собой:\n\n${event.whatToBring}`, Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад', 'main_menu')]]))
+      await safeEditMessage(ctx, `🎒 Что взять с собой:\n\n${event.whatToBring}`, Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад', 'main_menu')]]))
     } catch (error) {
       console.error('Error showing what to bring:', error)
       await ctx.answerCbQuery(MESSAGES.ERROR_GENERAL)
@@ -482,7 +482,7 @@ export class TelegramBot {
       }
 
       await ctx.answerCbQuery()
-      await ctx.editMessageText(`🗺️ Как добраться:\n\n${event.howToGetThere}`, Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад', 'main_menu')]]))
+      await safeEditMessage(ctx, `🗺️ Как добраться:\n\n${event.howToGetThere}`, Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад', 'main_menu')]]))
     } catch (error) {
       console.error('Error showing how to get there:', error)
       await ctx.answerCbQuery(MESSAGES.ERROR_GENERAL)
@@ -616,7 +616,7 @@ export class TelegramBot {
       }
 
       await ctx.answerCbQuery('Ваша оплата ожидает подтверждения администратором')
-      await ctx.editMessageText(`✅ Спасибо, ${ctx.from!.first_name}! Мы получили Ваше подтверждение об оплате.\n\nМакс скоро проверит оплату и подтвердит ваше участие.\nВы получите уведомление, когда это произойдет.`, Markup.inlineKeyboard([[Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
+      await safeEditMessage(ctx, `✅ Спасибо, ${ctx.from!.first_name}! Мы получили Ваше подтверждение об оплате.\n\nМакс скоро проверит оплату и подтвердит ваше участие.\nВы получите уведомление, когда это произойдет.`, Markup.inlineKeyboard([[Markup.button.callback(BUTTONS.MAIN_MENU, 'main_menu')]]))
     } catch (error) {
       console.error('Error handling payment confirmation:', error)
       await ctx.answerCbQuery(MESSAGES.ERROR_GENERAL)
@@ -656,12 +656,12 @@ export class TelegramBot {
 
   private async handleCancelJoin(ctx: BotContext, eventId: number): Promise<void> {
     await ctx.answerCbQuery()
-    await ctx.editMessageText('Регистрация отменена', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к списку встреч', 'new_events')]]))
+    await safeEditMessage(ctx, 'Регистрация отменена', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к списку встреч', 'new_events')]]))
   }
 
   private async handleRemindLater(ctx: BotContext, eventId: number): Promise<void> {
     await ctx.answerCbQuery('Мы напомним вам об оплате позже')
-    await ctx.editMessageText('Мы напомним вам об оплате позже. Вы можете вернуться к списку встреч.', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к списку встреч', 'new_events')]]))
+    await safeEditMessage(ctx, 'Мы напомним вам об оплате позже. Вы можете вернуться к списку встреч.', Markup.inlineKeyboard([[Markup.button.callback('◀️ Назад к списку встреч', 'new_events')]]))
   }
 
   // Методы для работы с участниками
@@ -703,7 +703,7 @@ export class TelegramBot {
       const allButtons = [...managementButtons, ...toggleButtons]
 
       await ctx.answerCbQuery()
-      await ctx.editMessageText(`📅 ${event.title}\n\n${participantsText}`, Markup.inlineKeyboard(allButtons))
+      await safeEditMessage(ctx, `📅 ${event.title}\n\n${participantsText}`, Markup.inlineKeyboard(allButtons))
     } catch (error) {
       console.error('Error showing event participants:', error)
       await ctx.answerCbQuery('Ошибка при загрузке участников')
